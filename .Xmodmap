@@ -1,0 +1,11 @@
+keycode 124 = F15
+clear lock
+clear control
+keycode 66 = Control_L
+add control = Control_L Control_R
+! escape to work with external keyboard
+keycode 180 = Escape 
+! entf buttow to turn off to work with external keyboard
+keycode 119 = F15
+! remap alt_r to $mod for external keyboard
+! keycode 108 = mod4
