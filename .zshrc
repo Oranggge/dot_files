@@ -111,7 +111,9 @@ export PATH="$HOME/.npm-packages/bin:$PATH"
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
-alias cat="/usr/bin/bat"
+function cat() {
+          /usr/bin/bat "$@" 2>/dev/null || /usr/bin/batcat "$@" || cat "$@"
+  }
 #alias bat="/usr/bin/batcat"
 alias cl="/usr/bin/clear"
 #alias man="/usr/bin/catman"
