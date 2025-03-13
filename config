@@ -4,12 +4,12 @@
 # Should you change your keyboard layout some time, delete
 # this file and re-run i3-config-wizard(1).
 #
-bindsym $mod+Tab workspace back_and_forth
 # i3 config file (v4)
 #
 # Please see https://i3wm.org/docs/userguide.html for a complete reference!
 
-set $mod Mod4
+set $mod Mod1
+bindsym $mod+Tab workspace back_and_forth
 
 # Font for window titles. Will also be used by the bar unless a different font
 # is used in the bar {} block below.
@@ -24,12 +24,12 @@ font pango:FiraCode 13
 
 # xss-lock grabs a logind suspend inhibit lock and will use i3lock to lock the
 # screen before suspend. Use loginctl lock-session to lock your screen.
-exec --no-startup-id xss-lock --transfer-sleep-lock -- i3lock --nofork
+#exec --no-startup-id xss-lock --transfer-sleep-lock -- i3lock --nofork
 
 # NetworkManager is the most popular way to manage wireless networks on Linux,
 # and nm-applet is a desktop environment-independent system tray GUI for it.
-exec --no-startup-id nm-applet
-exec_always --no-startup-id $HOME/.config/polybar/forest/launch.sh
+#exec --no-startup-id nm-applet
+#exec_always --no-startup-id $HOME/.config/polybar/forest/launch.sh
 
 # Use pactl to adjust volume in PulseAudio.
 set $refresh_i3status killall -SIGUSR1 i3status
@@ -38,20 +38,21 @@ bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume @DEFAULT
 bindsym XF86AudioMute exec --no-startup-id pactl set-sink-mute @DEFAULT_SINK@ toggle && $refresh_i3status
 bindsym XF86AudioMicMute exec --no-startup-id pactl set-source-mute @DEFAULT_SOURCE@ toggle && $refresh_i3status
 
-bindsym XF86MonBrightnessUp exec /etc/acpi/actions/bl-up.sh # increase screen brightness
-bindsym XF86MonBrightnessDown exec /etc/acpi/actions/bl-down.sh # decrease screen brightness
+bindsym XF86MonBrightnessUp exec brightnessctl set +10%
+bindsym XF86MonBrightnessDown exec brightnessctl set 10%-
 
 # Use Mouse+$mod to drag floating windows to their wanted position
 floating_modifier $mod
 
 # start a terminal
-bindsym $mod+Return exec kitty
+bindsym $mod+Return exec wezterm
 
 # kill focused window
 bindsym $mod+q kill
 
 # start dmenu (a program launcher)
-bindsym $mod+d exec --no-startup-id /home/mlappi/.config/rofi/launchers/misc/launcher.sh
+bindsym $mod+d exec --no-startup-id kickoff
+bindsym $mod+p exec --no-startup-id swaylock
 # A more modern dmenu replacement is rofi:
 # bindcode $mod+40 exec "rofi -modi drun,run -show drun"
 # There also is i3-dmenu-desktop which only displays applications shipping a
@@ -112,7 +113,7 @@ bindsym $mod+a focus parent
 # We use variables to avoid repeating the names in multiple places.
 set $ws1 "1:︁"
 set $ws2 "2:︁"
-set $ws3 "3:︁" 
+set $ws3 "3:︁"
 set $ws4 "4: "
 set $ws5 "5:︁"
 set $ws6 "6:"
@@ -154,11 +155,13 @@ floating_minimum_size -1 x -1
 floating_maximum_size 1300 x 800
 
 # reload the configuration file
-bindsym $mod+Shift+c reload
+#bindsym $mod+Shift+c reload
+bindsym $mod+Shift+e exec swaynag -t warning -m 'You pressed the exit shortcut. Do you really want to exit sway? This will end your Wayland session.' -b 'Yes, exit sway' 'swaymsg exit'
+
 # restart i3 inplace (preserves your layout/session, can be used to upgrade i3)
-bindsym $mod+Shift+r restart
+bindsym $mod+Shift+r exec 'swaymsg reload'
 # exit i3 (logs you out of your X session)
-bindsym $mod+Shift+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcut. Do you really want to exit i3? This will end your X session.' -B 'Yes, exit i3' 'i3-msg exit'"
+#bindsym $mod+Shift+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcut. Do you really want to exit i3? This will end your X session.' -B 'Yes, exit i3' 'i3-msg exit'"
 
 # resize window (you can also use the mouse for that)
 #mode "resize" {
@@ -184,62 +187,83 @@ bindsym $mod+Shift+e exec "i3-nagbar -t warning -m 'You pressed the exit shortcu
 #        bindsym Escape mode "default"
 #        bindsym $mod+r mode "default"
 #}
-#  
+#
 #bindsym $mod+r mode "resize"
 bindsym $mod+Ctrl+h resize shrink width 60 px or 60 ppt
 bindsym $mod+Ctrl+j resize grow height 60 px or 60 ppt
 bindsym $mod+Ctrl+k resize shrink height 60 px or 60 ppt
 bindsym $mod+Ctrl+l resize grow width 60 px or 60 ppt
 
-set $bg-color 	         #2f343f
+set $bg-color            #2f343f
 set $inactive-bg-color   #2f343f
 set $text-color          #f3f4f5
 set $inactive-text-color #676E7D
 set $urgent-bg-color     #E53935
 
-new_window pixel 6
-new_float pixel 6
-client.focused          #002b36             $blue              #fdf6e3              #268bd2
-client.unfocused        $inactive-bg-color  $inactive-bg-color $inactive-text-color #00ff00
-client.focused_inactive $inactive-bg-color  $inactive-bg-color $inactive-text-color #00ff00
-client.urgent           $urgent-bg-color    $urgent-bg-color   $text-color          #00ff00
+#new_window pixel 6
+#new_float pixel 6
+#client.focused          #002b36             $blue              #fdf6e3              #268bd2
+#client.unfocused        $inactive-bg-color  $inactive-bg-color $inactive-text-color #00ff00
+#client.focused_inactive $inactive-bg-color  $inactive-bg-color $inactive-text-color #00ff00
+#client.urgent           $urgent-bg-color    $urgent-bg-color   $text-color          #00ff00
 
 hide_edge_borders both
 
-exec_always --no-startup-id $HOME/.config/polybar/launch.sh
+#exec_always --no-startup-id waybar
 # add second language
-exec --no-startup-id "setxkbmap -model pc105 -layout us,ru -option grp:alt_space_toggle"
-exec --no-startup-id "xmodmap ~/.Xmodmap"
+#exec --no-startup-id "setxkbmap -model pc105 -layout us,ru -option grp:alt_space_toggle"
+#exec --no-startup-id "xmodmap ~/.Xmodmap"
 # Start i3bar to display a workspace bar (plus the system information i3status
 # finds out, if available)
+ bar {
+    swaybar_command swaybar
+    # Use swayrbar as status command with some logging output which
+    # is redirected to /tmp/swayrbar.log.  Be sure to only redirect
+    # stderr because the swaybar protocol requires the status_command
+    # to emit JSON to stdout which swaybar reads.
+    status_command env RUST_BACKTRACE=1 RUST_LOG=swayr=debug swayrbar 2> /tmp/swayrbar.log
+    position top
+    font pango:Iosevka 11
+    height 25
+
+    colors {
+        statusline #f8c500
+        background #33333390
+    }
+}
 #bar {
 ##i3status
-##status_command exec /home/newsmol/.config/i3/mybar 
+##status_command exec /home/newsmol/.config/i3/mybar
 #          colors { background $bg-color
-#	    	separator #757575
-#		#                  border             background         text
-#		focused_workspace  $bg-color          $bg-color          $text-color
-#		inactive_workspace $inactive-bg-color $inactive-bg-color $inactive-text-color
-#		urgent_workspace   $urgent-bg-color   $urgent-bg-color   $text-color
-#	}
+#               separator #757575
+#               #                  border             background         text
+#               focused_workspace  $bg-color          $bg-color          $text-color
+#               inactive_workspace $inactive-bg-color $inactive-bg-color $inactive-text-color
+#               urgent_workspace   $urgent-bg-color   $urgent-bg-color   $text-color
+#       }
 #    position top
 #}
- 
-# powerbutton 
-bindsym F15 exec /home/mlappi/.config/rofi/powermenu/powermenu.sh
-bindsym $mod+shift+a exec /home/mlappi/.config/rofi/applets/menu/screenshot.sh
-bindsym $mod+shift+d exec /home/mlappi/.screenlayout/1hd_only.sh
-bindsym $mod+shift+i exec /home/mlappi/.screenlayout/inner_only.sh
+
+# powerbutton
+#bindsym F15 exec /home/mlappi/.config/rofi/powermenu/powermenu.sh
+bindsym $mod+shift+a exec bash /home/nixi/bemenu-shot.sh
+#bindsym $mod+shift+d exec /home/mlappi/.screenlayout/1hd_only.sh
+#bindsym $mod+shift+i exec /home/mlappi/.screenlayout/inner_only.sh
 #will be continue
 #
 for_window [instance=mpv] sticky enable
 bindsym $mod+shift+s sticky toggle
 
 # set background
-exec --no-startup-id feh --bg-fill ~/Pictures/wallpaper.jpg
+#exec --no-startup-id feh --bg-fill ~/Pictures/wallpaper.jpg
 
 # auto lock out
-exec --no-startup-id xautolock -time 15 -locker 'i3lock-fancy -- scrot -z -o'
+exec --no-startup-id xautolock -time 15 -locker 'swaylock'
 
-smart_gaps on
-gaps inner 0
+input "type:keyboard" {
+    xkb_layout us,ru
+    xkb_options ctrl:nocaps
+}
+
+bindswitch lid:on output eDP-1 disable
+bindswitch lid:off output eDP-1 enable
