@@ -1,259 +1,272 @@
-" remap jk to escape 
-inoremap jj <Esc>
+call plug#begin()
 
-" :noh bind to esc, so remove highlight after search
-nnoremap <silent> <esc> :noh<cr><esc>
-
-" :noh bind to esc, so remove highlight after search
-nnoremap  ,<space>  :GoRun<cr>
-
-" theme for status bar from here https://github.com/vim-airline/vim-airline/wiki/Screenshots
-"let g:airline_theme='luna'
-set number
-
-"vim-plug - nvim plugin manager https://github.com/junegunn/vim-plug
-" PLUGGED is the folder where all plugins are downloaded automatically 
-call plug#begin('~/.config/nvim/plugged')
-
-" status/tabline 
-Plug 'vim-airline/vim-airline'
-Plug 'vim-airline/vim-airline-themes'
-
-" language highligt and so on
-"Plug 'neoclide/coc.nvim', {'branch': 'release'}
-
-" smooth scroll in vim
-Plug 'psliwka/vim-smoothie'
-
-Plug 'christoomey/vim-tmux-navigator'
-
-" theme 
+" List your plugins here
+Plug 'tpope/vim-sensible'
+Plug 'karb94/neoscroll.nvim'
 Plug 'morhetz/gruvbox'
 
-" color for theme?
-Plug 'HerringtonDarkholme/yats.vim' " TS Syntax
-
-" number
-Plug 'jeffkreeftmeijer/vim-numbertoggle'
-
-" autosave run :AutoSaveToggle to enable/disable it.
-Plug '907th/vim-auto-save'
-
-" Plug for golang
-"Plug 'fatih/vim-go', { 'do': ':GoUpdateBinaries' }
-
-" to look csv files
-Plug 'chrisbra/csv.vim'
+" Navigation
+Plug 'nvim-lua/plenary.nvim'
+Plug 'nvim-telescope/telescope.nvim', { 'tag': '0.2.2' }
+Plug 'nvim-tree/nvim-web-devicons'
+Plug 'nvim-tree/nvim-tree.lua'
+Plug 'akinsho/bufferline.nvim', { 'tag': 'v4.*' }
+Plug 'nvim-treesitter/nvim-treesitter', { 'do': ':TSUpdate' }
+Plug 'nvim-treesitter/nvim-treesitter-textobjects'
+Plug 'folke/which-key.nvim'
+Plug 'lewis6991/gitsigns.nvim'
+Plug 'lukas-reineke/indent-blankline.nvim'
 
 call plug#end()
-" for theme to word
-autocmd vimenter * ++nested colorscheme gruvbox
+
+" Gruvbox colorscheme
+set background=dark
+set termguicolors
+colorscheme gruvbox
+
+lua << EOF
+require('neoscroll').setup({})
+
+-- File explorer
+require('nvim-tree').setup({
+  view = { width = 30 },
+  filters = { dotfiles = false },
+})
+
+-- Bufferline (tabs)
+require('bufferline').setup({
+  options = {
+    diagnostics = false,
+    show_buffer_close_icons = true,
+    show_close_icon = false,
+    separator_style = "slant",
+    offsets = {
+      { filetype = "NvimTree", text = "Explorer", text_align = "center" },
+    },
+  },
+})
+
+-- Telescope
+local actions = require('telescope.actions')
+local action_layout = require('telescope.actions.layout')
+require('telescope').setup({
+  defaults = {
+    file_ignore_patterns = { "node_modules", ".git/" },
+    mappings = {
+      i = {
+        ["<C-/>"] = action_layout.toggle_preview,
+        ["<C-p>"] = action_layout.cycle_layout_next,
+      },
+      n = {
+        ["<C-/>"] = action_layout.toggle_preview,
+        ["<C-p>"] = action_layout.cycle_layout_next,
+      },
+    },
+    layout_strategy = "vertical",
+    layout_config = {
+      horizontal = { preview_width = 0.55 },
+    },
+    cycle_layout_list = { "horizontal", "vertical" },
+  },
+})
+
+-- Which-key
+local wk = require('which-key')
+wk.setup()
+wk.add({
+  { "<leader>f", group = "Find" },
+  { "<leader>ff", desc = "Find files" },
+  { "<leader>fg", desc = "Live grep" },
+  { "<leader>fw", desc = "Find word under cursor" },
+  { "<leader>fb", desc = "Find buffers" },
+  { "<leader>fh", desc = "Find help" },
+  { "<leader>e", desc = "Toggle explorer" },
+  { "<leader>h", desc = "Jump to explorer" },
+  { "<leader>l", desc = "Jump to editor" },
+  { "<leader>x", desc = "Close buffer" },
+  { "<leader>rn", desc = "Rename symbol" },
+  { "<leader>ca", desc = "Code actions" },
+  { "<leader>D", desc = "Delete + yank" },
+  { "<leader>Y", desc = "Delete to clipboard" },
+  { "gd", desc = "Go to definition" },
+  { "gr", desc = "Go to references" },
+  { "gi", desc = "Go to implementation" },
+  { "gf", desc = "Next function" },
+  { "gF", desc = "Prev function" },
+  { "gc", desc = "Next class" },
+  { "gC", desc = "Prev class" },
+  { "ge", desc = "Next error" },
+  { "gE", desc = "Prev error" },
+  { "<leader>g", group = "Git" },
+  { "<leader>gp", desc = "Preview hunk" },
+  { "<leader>gb", desc = "Blame line" },
+  { "<leader>gd", desc = "Diff file" },
+})
+
+-- Gitsigns
+require('gitsigns').setup({
+  signs = {
+    add          = { text = '│' },
+    change       = { text = '│' },
+    delete       = { text = '_' },
+    topdelete    = { text = '‾' },
+    changedelete = { text = '~' },
+  },
+  current_line_blame = true,
+  on_attach = function(bufnr)
+    local gs = require('gitsigns')
+    local opts = { buffer = bufnr }
+    vim.keymap.set('n', ']g', gs.next_hunk, opts)
+    vim.keymap.set('n', '[g', gs.prev_hunk, opts)
+    vim.keymap.set('n', '<leader>gp', gs.preview_hunk, opts)
+    vim.keymap.set('n', '<leader>gb', gs.blame_line, opts)
+    vim.keymap.set('n', '<leader>gd', gs.diffthis, opts)
+  end,
+})
+
+-- Indent guides
+require('ibl').setup({
+  indent = { char = '│' },
+  scope = { enabled = true, show_start = false, show_end = false },
+})
+
+-- Enable treesitter highlighting for all supported filetypes
+vim.api.nvim_create_autocmd('FileType', {
+  callback = function()
+    pcall(vim.treesitter.start)
+  end,
+})
+
+-- Treesitter textobjects
+require('nvim-treesitter-textobjects').setup({ move = { set_jumps = true } })
+local move = require('nvim-treesitter-textobjects.move')
+
+vim.keymap.set({ 'n', 'x' }, 'gf', function() move.goto_next_start('@function.outer') end, { desc = 'Go to next function' })
+vim.keymap.set({ 'n', 'x' }, 'gF', function() move.goto_previous_start('@function.outer') end, { desc = 'Go to prev function' })
+vim.keymap.set({ 'n', 'x' }, 'gc', function() move.goto_next_start('@class.outer') end, { desc = 'Go to next class' })
+vim.keymap.set({ 'n', 'x' }, 'gC', function() move.goto_previous_start('@class.outer') end, { desc = 'Go to prev class' })
+
+-- LSP setup
+local on_attach = function(client, bufnr)
+  local opts = { buffer = bufnr }
+  vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
+  vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, opts)
+  vim.keymap.set('n', 'gr', vim.lsp.buf.references, opts)
+  vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, opts)
+  vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
+  vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
+  vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
+  vim.keymap.set('n', 'ge', vim.diagnostic.goto_next, opts)
+  vim.keymap.set('n', 'gE', vim.diagnostic.goto_prev, opts)
+end
+
+-- Rust
+vim.lsp.start = vim.lsp.start
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'rust',
+  callback = function()
+    vim.lsp.start({
+      name = 'rust-analyzer',
+      cmd = { 'rust-analyzer' },
+      root_dir = vim.fs.root(0, { 'Cargo.toml', 'rust-project.json' }),
+      on_attach = on_attach,
+    })
+  end,
+})
+
+-- TypeScript / Angular
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = { 'typescript', 'typescriptreact', 'javascript', 'javascriptreact', 'html' },
+  callback = function()
+    local root = vim.fs.root(0, { 'angular.json', 'tsconfig.json', 'package.json' })
+    local is_angular = root and vim.fn.filereadable(root .. '/angular.json') == 1
+
+    if is_angular then
+      vim.lsp.start({
+        name = 'angularls',
+        cmd = { 'ngserver', '--stdio', '--tsProbeLocations', root .. '/node_modules', '--ngProbeLocations', vim.fn.expand('~/.nvm/versions/node/v24.12.0/lib/node_modules') },
+        root_dir = root,
+        on_attach = on_attach,
+      })
+    end
+
+    vim.lsp.start({
+      name = 'ts_ls',
+      cmd = { 'typescript-language-server', '--stdio' },
+      root_dir = root,
+      on_attach = on_attach,
+    })
+  end,
+})
+EOF
+
+" Folding with treesitter
+set foldmethod=expr
+set foldexpr=v:lua.vim.treesitter.foldexpr()
+set foldlevel=99
+set foldcolumn=1
+
+" Clear search highlight with Esc
+nnoremap <Esc> <cmd>noh<cr>
+
+" --- Keybindings ---
+" Telescope
+nnoremap <leader>ff <cmd>Telescope find_files<cr>
+nnoremap <leader>fg <cmd>Telescope live_grep<cr>
+nnoremap <leader>fw <cmd>Telescope grep_string<cr>
+nnoremap <leader>fb <cmd>Telescope buffers<cr>
+nnoremap <leader>fh <cmd>Telescope help_tags<cr>
+
+" Nvim-tree
+nnoremap <leader>e <cmd>NvimTreeToggle<cr>
+nnoremap <leader>h <cmd>NvimTreeFocus<cr>
+nnoremap <leader>l <cmd>wincmd l<cr>
+
+" Bufferline — navigate tabs
+nnoremap <Tab> <cmd>BufferLineCycleNext<cr>
+nnoremap <S-Tab> <cmd>BufferLineCyclePrev<cr>
+nnoremap <leader>x <cmd>bd<cr>
 
 
-"{ Auto commands
-" Do not use smart case in command line mode, extracted from https://vi.stackexchange.com/a/16511/15292.
-augroup dynamic_smartcase
-  autocmd!
-  autocmd CmdLineEnter : set nosmartcase
-  autocmd CmdLineLeave : set smartcase
-augroup END
+" ignore case search, set number, and copy copy to clipboard
+set ignorecase
+set number
+set clipboard=unnamedplus
+" --- Delete / change without yanking (Neovim init.vim) ---
 
-augroup term_settings
-  autocmd!
-  " Do not use number and relative number for terminal inside nvim
-  autocmd TermOpen * setlocal norelativenumber nonumber
-  " Go to insert mode by default to start typing command
-  autocmd TermOpen * startinsert
-augroup END
+" Delete (normal + visual) — never touch unnamed register
+nnoremap d "_d
+nnoremap D "_D
+nnoremap dd "_dd
+xnoremap d "_d
 
+" Character delete
+nnoremap x "_x
+nnoremap X "_X
+xnoremap x "_x
 
-set tabstop=2
-set shiftwidth=2
-set expandtab
-set smartindent
-" vim-prettier
-"let g:prettier#quickfix_enabled = 0
-"let g:prettier#quickfix_auto_focus = 0
-" prettier command for coc
-command! -nargs=0 Prettier :CocCommand prettier.formatFile
-" run prettier on save
-"let g:prettier#autoformat = 0
-"autocmd BufWritePre *.js,*.jsx,*.mjs,*.ts,*.tsx,*.css,*.less,*.scss,*.json,*.graphql,*.md,*.vue,*.yaml,*.html PrettierAsync
-"
+" Change (replaces text) — also without yanking
+nnoremap c "_c
+nnoremap C "_C
+xnoremap c "_c
 
-" coc config
-let g:coc_global_extensions = [
-  \ 'coc-snippets',
-  \ 'coc-pairs',
-  \ 'coc-tsserver',
-  \ 'coc-eslint', 
-  \ 'coc-prettier', 
-  \ 'coc-json', 
-  \ ]
+" Substitute single char (like 'cl')
+nnoremap s "_s
+nnoremap S "_S
+xnoremap s "_s
 
+" --- Optional quality-of-life: quick way to *do* a yanky delete when you want it ---
+" <leader>D in normal/visual will delete *and* yank (into the default register)
+nnoremap <leader>D d
+xnoremap <leader>D d
 
-" START OF CONFIG FROM https://github.com/neoclide/coc.nvim for coc.nvim
-autocmd FileType json syntax match Comment +\/\/.\+$+
+" If you sometimes want delete->system clipboard explicitly:
+" <leader>Y deletes to + register (system clipboard)
+nnoremap <leader>Y "+d
+xnoremap <leader>Y "+d
 
-" TextEdit might fail if hidden is not set.
-set hidden
+" Notes:
+" 1) With the remaps above, all your d/x/c/s go to the black-hole register.
+" 2) To force a one-off yanky delete with registers, you can also type: ""d  (double quote then d)
+" 3) Yank commands (y, yy, Y) are untouched and still fill the unnamed/clipboard registers normally.
 
-" Some servers have issues with backup files, see #649.
-set nobackup
-set nowritebackup
-
-" Give more space for displaying messages.
-set cmdheight=2
-
-" Having longer updatetime (default is 4000 ms = 4 s) leads to noticeable
-" delays and poor user experience.
-set updatetime=300
-
-" Don't pass messages to |ins-completion-menu|.
-set shortmess+=c
-
-" Always show the signcolumn, otherwise it would shift the text each time
-" diagnostics appear/become resolved.
-if has("nvim-0.5.0") || has("patch-8.1.1564")
-  " Recently vim can merge signcolumn and number column into one
-  set signcolumn=number
-else
-  set signcolumn=yes
-endif
-
-" Use tab for trigger completion with characters ahead and navigate.
-" NOTE: Use command ':verbose imap <tab>' to make sure tab is not mapped by
-" other plugin before putting this into your config.
-inoremap <silent><expr> <TAB>
-      \ pumvisible() ? "\<C-n>" :
-      \ <SID>check_back_space() ? "\<TAB>" :
-      \ coc#refresh()
-inoremap <expr><S-TAB> pumvisible() ? "\<C-p>" : "\<C-h>"
-
-function! s:check_back_space() abort
-  let col = col('.') - 1
-  return !col || getline('.')[col - 1]  =~# '\s'
-endfunction
-
-" Use <c-space> to trigger completion.
-if has('nvim')
-  inoremap <silent><expr> <c-space> coc#refresh()
-else
-  inoremap <silent><expr> <c-@> coc#refresh()
-endif
-
-" Make <CR> auto-select the first completion item and notify coc.nvim to
-" format on enter, <cr> could be remapped by other vim plugin
-inoremap <silent><expr> <cr> pumvisible() ? coc#_select_confirm()
-                              \: "\<C-g>u\<CR>\<c-r>=coc#on_enter()\<CR>"
-
-" Use `[g` and `]g` to navigate diagnostics
-" Use `:CocDiagnostics` to get all diagnostics of current buffer in location list.
-nmap <silent> [g <Plug>(coc-diagnostic-prev)
-nmap <silent> ]g <Plug>(coc-diagnostic-next)
-
-" GoTo code navigation.
-nmap <silent> gd <Plug>(coc-definition)
-nmap <silent> gy <Plug>(coc-type-definition)
-nmap <silent> gi <Plug>(coc-implementation)
-nmap <silent> gr <Plug>(coc-references)
-
-" Use K to show documentation in preview window.
-nnoremap <silent> K :call <SID>show_documentation()<CR>
-
-function! s:show_documentation()
-  if (index(['vim','help'], &filetype) >= 0)
-    execute 'h '.expand('<cword>')
-  elseif (coc#rpc#ready())
-    call CocActionAsync('doHover')
-  else
-    execute '!' . &keywordprg . " " . expand('<cword>')
-  endif
-endfunction
-
-" Highlight the symbol and its references when holding the cursor.
-autocmd CursorHold * silent call CocActionAsync('highlight')
-
-" Symbol renaming.
-nmap <leader>rn <Plug>(coc-rename)
-
-" Formatting selected code.
-xmap <leader>f  <Plug>(coc-format-selected)
-nmap <leader>f  <Plug>(coc-format-selected)
-
-augroup mygroup
-  autocmd!
-  " Setup formatexpr specified filetype(s).
-  autocmd FileType typescript,json setl formatexpr=CocAction('formatSelected')
-  " Update signature help on jump placeholder.
-  autocmd User CocJumpPlaceholder call CocActionAsync('showSignatureHelp')
-augroup end
-
-" Applying codeAction to the selected region.
-" Example: `<leader>aap` for current paragraph
-"xmap <leader>a  <Plug>(coc-codeaction-selected)
-"nmap <leader>a  <Plug>(coc-codeaction-selected)
-
-" Remap keys for applying codeAction to the current buffer.
-nmap <leader>a  <Plug>(coc-codeaction)
-" Apply AutoFix to problem on the current line.
-nmap <leader>qf  <Plug>(coc-fix-current)
-
-" Map function and class text objects
-" NOTE: Requires 'textDocument.documentSymbol' support from the language server.
-xmap if <Plug>(coc-funcobj-i)
-omap if <Plug>(coc-funcobj-i)
-xmap af <Plug>(coc-funcobj-a)
-omap af <Plug>(coc-funcobj-a)
-xmap ic <Plug>(coc-classobj-i)
-omap ic <Plug>(coc-classobj-i)
-xmap ac <Plug>(coc-classobj-a)
-omap ac <Plug>(coc-classobj-a)
-
-" Remap <C-f> and <C-b> for scroll float windows/popups.
-if has('nvim-0.4.0') || has('patch-8.2.0750')
-  nnoremap <silent><nowait><expr> <C-f> coc#float#has_scroll() ? coc#float#scroll(1) : "\<C-f>"
-  nnoremap <silent><nowait><expr> <C-b> coc#float#has_scroll() ? coc#float#scroll(0) : "\<C-b>"
-  inoremap <silent><nowait><expr> <C-f> coc#float#has_scroll() ? "\<c-r>=coc#float#scroll(1)\<cr>" : "\<Right>"
-  inoremap <silent><nowait><expr> <C-b> coc#float#has_scroll() ? "\<c-r>=coc#float#scroll(0)\<cr>" : "\<Left>"
-  vnoremap <silent><nowait><expr> <C-f> coc#float#has_scroll() ? coc#float#scroll(1) : "\<C-f>"
-  vnoremap <silent><nowait><expr> <C-b> coc#float#has_scroll() ? coc#float#scroll(0) : "\<C-b>"
-endif
-
-" Use CTRL-S for selections ranges.
-" Requires 'textDocument/selectionRange' support of language server.
-nmap <silent> <C-s> <Plug>(coc-range-select)
-xmap <silent> <C-s> <Plug>(coc-range-select)
-
-" Add `:Format` command to format current buffer.
-command! -nargs=0 Format :call CocAction('format')
-
-" Add `:Fold` command to fold current buffer.
-command! -nargs=? Fold :call     CocAction('fold', <f-args>)
-
-" Add `:OR` command for organize imports of the current buffer.
-command! -nargs=0 OR   :call     CocAction('runCommand', 'editor.action.organizeImport')
-
-" Add (Neo)Vim's native statusline support.
-" NOTE: Please see `:h coc-status` for integrations with external plugins that
-" provide custom statusline: lightline.vim, vim-airline.
-set statusline^=%{coc#status()}%{get(b:,'coc_current_function','')}
-
-" Mappings for CoCList
-" Show all diagnostics.
-nnoremap <silent><nowait> <space>a  :<C-u>CocList diagnostics<cr>
-" Manage extensions.
-nnoremap <silent><nowait> <space>e  :<C-u>CocList extensions<cr>
-" Show commands.
-nnoremap <silent><nowait> <space>c  :<C-u>CocList commands<cr>
-" Find symbol of current document.
-nnoremap <silent><nowait> <space>o  :<C-u>CocList outline<cr>
-" Search workspace symbols.
-nnoremap <silent><nowait> <space>s  :<C-u>CocList -I symbols<cr>
-" Do default action for next item.
-nnoremap <silent><nowait> <space>j  :<C-u>CocNext<CR>
-" Do default action for previous item.
-nnoremap <silent><nowait> <space>k  :<C-u>CocPrev<CR>
-" Resume latest coc list.
-nnoremap <silent><nowait> <space>p  :<C-u>CocListResume<CR>
-"END OF CONFIG

@@ -137,14 +137,14 @@ function ssh() { TERM=xterm-256color command ssh "$@"; }
 
 # fzf config
 source <(fzf --zsh)
-# Look & feel for all fzf prompts
-#export FZF_CTRL_T_OPTS='--bind "enter:become(nvim {}),ctrl-e:become(firefox --new-window {})"'
-#export FZF_CTRL_T_OPTS='--bind "enter:become(nvim {})"'
-#export FZF_CTRL_T_OPTS='--preview "bat --color=always {}" --bind "enter:become(nvim {}),ctrl-e:become(firefox --new-window {})"'
-
-# preview the files and open with nvim 
-#export FZF_CTRL_T_OPTS='--height=100% --preview "bat --style=numbers --color=always --line-range :500 {}" --bind "enter:execute(nvim {+} < /dev/tty > /dev/tty 2> /dev/tty)+abort"'
-export FZF_CTRL_T_OPTS='--height=100% --preview "bat --style=numbers --color=always --line-range :500 {}" --bind "enter:execute(xdg-open {+} < /dev/tty > /dev/tty 2> /dev/tty)+abort"'
+# Ctrl+T: file finder with bat preview
+#   Enter  = open in nvim
+#   Ctrl+O = open with xdg-open (PDFs, images, etc.)
+#   Ctrl+/ = toggle fullscreen preview (cycle: fullscreen → normal → hidden)
+#   Ctrl+U/D = scroll preview half-page up/down
+#   Ctrl+Y/E = scroll preview line up/down
+#   Ctrl+G   = scroll to top, Ctrl+Shift+G = scroll to bottom (G/gg style)
+export FZF_CTRL_T_OPTS='--height=100% --preview "bat --style=numbers --color=always --line-range :500 {}" --bind "enter:execute(nvim {+} < /dev/tty > /dev/tty 2> /dev/tty)+abort,ctrl-o:execute(xdg-open {+} &)+abort,ctrl-/:change-preview-window(up,99%,border-bottom|right,50%|hidden|),ctrl-u:preview-half-page-up,ctrl-d:preview-half-page-down,ctrl-y:preview-up,ctrl-e:preview-down,ctrl-g:preview-top"'
 
 
 . "$HOME/.local/bin/env"

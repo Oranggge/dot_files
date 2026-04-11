@@ -1,0 +1,77 @@
+NVIM KEYBINDINGS CHEATSHEET
+============================
+Leader key: \  (backslash)
+
+FIND (telescope) — \f + letter
+-------------------------------
+\ff          Find files
+\fg          Live grep (search inside files)
+\fw          Find word under cursor (grep)
+\fb          Browse open buffers
+\fh          Search help tags
+Ctrl+/       Toggle preview (inside telescope)
+Ctrl+P       Switch layout (vertical/horizontal)
+
+FILE EXPLORER
+-------------
+\e           Toggle file explorer sidebar
+\h           Jump to file explorer (left pane)
+\l           Jump to file editor (right pane)
+Backspace    Collapse parent folder
+
+TABS / BUFFERS
+--------------
+Tab          Next tab
+Shift+Tab    Previous tab
+\x           Close current tab/buffer
+
+CODE NAVIGATION (LSP)
+---------------------
+gd           Go to definition
+gr           Go to references (where it's used)
+gi           Go to implementation
+K            Hover docs (show type/signature)
+\rn          Rename symbol
+\ca          Code actions
+ge           Go to next error/warning
+gE           Go to previous error/warning
+Ctrl+O       Jump back (after gd/gr/etc.)
+Ctrl+I       Jump forward
+
+GIT (gitsigns)
+--------------
+]g           Next changed hunk
+[g           Previous changed hunk
+\gp          Preview change (before/after)
+\gb          Blame current line (full info)
+\gd          Side-by-side diff
+
+FUNCTION JUMPING (treesitter)
+-----------------------------
+gf           Go to next function
+gF           Go to previous function
+gc           Go to next class
+gC           Go to previous class
+
+EDITING (custom — delete/change won't overwrite yank)
+-----------------------------------------------------
+d / dd / D   Delete without yanking
+x / X        Delete char without yanking
+c / C        Change without yanking
+s / S        Substitute without yanking
+y / yy / Y   Yank (copy) — works normally
+\D           Delete AND yank (when you need it)
+\Y           Delete to system clipboard
+
+FZF (terminal, not nvim)
+------------------------
+Ctrl+T       File finder with preview
+  Enter        Open in nvim
+  Ctrl+O       Open with xdg-open
+  Ctrl+/       Toggle fullscreen preview
+  Ctrl+U       Preview scroll half-page up
+  Ctrl+D       Preview scroll half-page down
+  Ctrl+Y       Preview scroll line up
+  Ctrl+E       Preview scroll line down
+  Ctrl+G       Preview scroll to top
+Ctrl+R       Command history search
