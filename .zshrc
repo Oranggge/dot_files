@@ -144,7 +144,7 @@ source <(fzf --zsh)
 #   Ctrl+U/D = scroll preview half-page up/down
 #   Ctrl+Y/E = scroll preview line up/down
 #   Ctrl+G   = scroll to top, Ctrl+Shift+G = scroll to bottom (G/gg style)
-export FZF_CTRL_T_OPTS='--height=100% --preview "bat --style=numbers --color=always --line-range :500 {}" --bind "enter:execute(nvim {+} < /dev/tty > /dev/tty 2> /dev/tty)+abort,ctrl-o:execute(xdg-open {+} &)+abort,ctrl-/:change-preview-window(up,99%,border-bottom|right,50%|hidden|),ctrl-u:preview-half-page-up,ctrl-d:preview-half-page-down,ctrl-y:preview-up,ctrl-e:preview-down,ctrl-g:preview-top"'
+export FZF_CTRL_T_OPTS='--height=100% --preview "case {} in *.png|*.jpg|*.jpeg|*.gif|*.bmp|*.webp|*.svg|*.ico) chafa --format=symbols --size=80x25 {} ;; *) bat --style=numbers --color=always --line-range :500 {} ;; esac" --bind "enter:execute(nvim {+} < /dev/tty > /dev/tty 2> /dev/tty)+abort,ctrl-o:execute(xdg-open {+} &)+abort,ctrl-/:change-preview-window(up,99%,border-bottom|right,50%|hidden|),ctrl-u:preview-half-page-up,ctrl-d:preview-half-page-down,ctrl-y:preview-up,ctrl-e:preview-down,ctrl-g:preview-top"'
 
 
 . "$HOME/.local/bin/env"
