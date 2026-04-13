@@ -31,6 +31,14 @@ sudo chmod g+rx /etc/wireguard
 ```
 The `.conf` files themselves stay `600 root:root` — your keys aren't exposed.
 
+**1a. Fix SELinux labels if configs were copied from `~`:**
+If any `.conf` was originally copied from your home dir, it may have
+the wrong SELinux context (`user_home_t` instead of `etc_t`), and
+wg-quick will fail with "Permission denied" even as root. Fix:
+```sh
+sudo restorecon -Rv /etc/wireguard
+```
+
 **2. Narrow sudoers entry for systemctl start/stop on wg-quick units:**
 ```sh
 echo "$USER ALL=(root) NOPASSWD: /usr/bin/systemctl start wg-quick@*.service, /usr/bin/systemctl stop wg-quick@*.service" | sudo tee /etc/sudoers.d/polybar-wg
