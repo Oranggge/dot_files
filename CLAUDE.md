@@ -20,9 +20,27 @@ Matches nvim (gruvbox) + tmux (no left/right status) philosophy.
 ## Polybar
 
 - Bar name: `main` (not the default `example`)
-- Modules: `xworkspaces | (center) date | cpu memory pulseaudio wlan battery`
+- Modules: `xworkspaces | (center) date | cpu memory pulseaudio wlan vpn battery`
 - CPU/RAM turn alert-red above 80% via `format-warn`
 - Icons from JetBrainsMono Nerd Font
+- VPN module uses `polybar/vpn.sh` — detects tailscale then wireguard (see `polybar/SETUP.md`)
+
+## Rofi (launcher)
+
+- Installed 2026-04-13. Replaces dmenu as `$mod+d` launcher.
+- Configs in `./rofi/` (`config.rasi` + `gruvbox-dark.rasi` theme, matches polybar)
+- Modes: `drun` (GUI apps), `run` (any `$PATH` binary), `window` (focus existing)
+- Only GUI apps with `.desktop` files show in `drun`. Manually-installed ones
+  (like qutebrowser at `/usr/local/bin/qutebrowser`) need a desktop entry —
+  see `./applications/qutebrowser.desktop` for the pattern.
+
+## Known drift
+
+- `./config` (repo) and `~/.config/i3/config` (live) have **drifted**. The live
+  one is what's actually running i3. Current live version is mirrored as
+  `./i3-config.live` for safety. The repo's `./config` was last committed
+  as "changed to sway config file" but contains i3 wizard output — status
+  unclear. Do not edit `./config` without first deciding which is canonical.
 
 ### Open decisions
 
@@ -30,10 +48,10 @@ Matches nvim (gruvbox) + tmux (no left/right status) philosophy.
   and the running tray apps didn't earn their spot. Reconsider if a truly
   useful background app appears (Syncthing, VPN, KeePassXC, etc.) — then
   re-add `systray` to `modules-right` in `polybar/config.ini`.
-- **Launcher** — still on stock `dmenu`. Considering `rofi` later as a nicer
-  alternative. Not installed yet.
+- **i3 config drift** — decide which file is canonical, delete the other.
 - **Compositor** — no `picom` installed. Could add for transparency/shadows,
   but current minimal aesthetic doesn't demand it.
+- **Wireguard click-toggle** — see `polybar/SETUP.md` (currently display-only).
 
 ## Deploy workflow
 

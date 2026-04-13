@@ -1,0 +1,13 @@
+configuration {
+    modes:           "drun,run,window";
+    show-icons:      true;
+    icon-theme:      "Papirus";
+    drun-display-format: "{name}";
+    display-drun:    " apps";
+    display-run:     " run";
+    display-window:  " win";
+    sidebar-mode:    false;
+    terminal:        "ghostty";
+}
+
+@theme "gruvbox-dark"
