@@ -34,13 +34,16 @@ Matches nvim (gruvbox) + tmux (no left/right status) philosophy.
   (like qutebrowser at `/usr/local/bin/qutebrowser`) need a desktop entry —
   see `./applications/qutebrowser.desktop` for the pattern.
 
-## Known drift
+## Layout
 
-- `./config` (repo) and `~/.config/i3/config` (live) have **drifted**. The live
-  one is what's actually running i3. Current live version is mirrored as
-  `./i3-config.live` for safety. The repo's `./config` was last committed
-  as "changed to sway config file" but contains i3 wizard output — status
-  unclear. Do not edit `./config` without first deciding which is canonical.
+- **i3 config:** `./i3/config` (canonical, mirrors `~/.config/i3/config`)
+- **Polybar:** `./polybar/` (canonical source, NOT symlinked to `~/.config/polybar/`)
+- **Rofi:** `./rofi/` (canonical source)
+- **Ghostty:** `./ghostty/config` (canonical source)
+- **nvim:** `./init.vim`
+- **tmux:** `./.tmux.conf`
+- **zsh:** `./.zshrc` — NOTE: the live `~/.zshrc` has drifted slightly
+  (extra lines for Go PATH, lazygit alias). Reconcile manually when editing.
 
 ### Open decisions
 
@@ -48,10 +51,10 @@ Matches nvim (gruvbox) + tmux (no left/right status) philosophy.
   and the running tray apps didn't earn their spot. Reconsider if a truly
   useful background app appears (Syncthing, VPN, KeePassXC, etc.) — then
   re-add `systray` to `modules-right` in `polybar/config.ini`.
-- **i3 config drift** — decide which file is canonical, delete the other.
 - **Compositor** — no `picom` installed. Could add for transparency/shadows,
   but current minimal aesthetic doesn't demand it.
-- **Wireguard click-toggle** — see `polybar/SETUP.md` (currently display-only).
+- **Wireguard click-toggle** — see `polybar/SETUP.md` (currently wired up
+  for any config under `/etc/wireguard/` via a narrow sudoers entry).
 
 ## Deploy workflow
 
