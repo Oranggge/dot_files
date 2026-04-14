@@ -155,25 +155,30 @@ source /home/fedouser/.config/broot/launcher/bash/br
 export SDKMAN_DIR="$HOME/.sdkman"
 [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
 
-# commented out for startup performance improvement https://chatgpt.com/c/69527bfb-ec18-8331-b9b3-90f3434d54e5
+# NVM: lazy-loaded. First call to nvm/node/npm/npx sources nvm.sh on demand.
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+# Put nvm's default node on PATH without sourcing nvm.sh (saves ~800ms startup).
+[ -d "$NVM_DIR/versions/node" ] && {
+  _nvm_default=$(cat "$NVM_DIR/alias/default" 2>/dev/null)
+  [ -n "$_nvm_default" ] && [ -d "$NVM_DIR/versions/node/$_nvm_default/bin" ] \
+    && export PATH="$NVM_DIR/versions/node/$_nvm_default/bin:$PATH"
+  unset _nvm_default
+}
+_nvm_lazy_load() {
+  unset -f nvm node npm npx
+  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+  [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
+}
+nvm()  { _nvm_lazy_load; nvm  "$@"; }
+# Only shim node/npm/npx if nvm hasn't been put on PATH above.
+command -v node >/dev/null 2>&1 || node() { _nvm_lazy_load; node "$@"; }
+command -v npm  >/dev/null 2>&1 || npm()  { _nvm_lazy_load; npm  "$@"; }
+command -v npx  >/dev/null 2>&1 || npx()  { _nvm_lazy_load; npx  "$@"; }
 
-
-#_nvm_lazy_load() {
-#  unset -f nvm node npm npx
-#  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" --no-use
-#  [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
-#}
-#
-#nvm()  { _nvm_lazy_load; nvm  "$@"; }
-#node() { _nvm_lazy_load; node "$@"; }
-#npm()  { _nvm_lazy_load; npm  "$@"; }
-#npx()  { _nvm_lazy_load; npx  "$@"; }
-#
-# Load Angular CLI autocompletion.
-source <(ng completion script)
+# Angular CLI completion (cached — regenerate with: ng completion script > ~/.cache/ng-completion.zsh)
+_ng_cache="$HOME/.cache/ng-completion.zsh"
+[ -s "$_ng_cache" ] && source "$_ng_cache"
+unset _ng_cache
 
 # opencode
 export PATH=/home/fedouser/.opencode/bin:$PATH
@@ -181,7 +186,10 @@ export PATH=/home/fedouser/.opencode/bin:$PATH
 export PATH=/opt/OpenWhispr/:$PATH
 alias openwhispr="open-whispr"
 
-eval $(thefuck --alias)
+# thefuck (cached — regenerate with: thefuck --alias > ~/.cache/thefuck-alias.zsh)
+_tf_cache="$HOME/.cache/thefuck-alias.zsh"
+[ -s "$_tf_cache" ] && source "$_tf_cache"
+unset _tf_cache
 
 # bun completions
 [ -s "/home/fedouser/.bun/_bun" ] && source "/home/fedouser/.bun/_bun"
