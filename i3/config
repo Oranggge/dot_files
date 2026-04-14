@@ -9,7 +9,7 @@ font pango:monospace 13
 
 exec --no-startup-id dex-autostart --autostart --environment i3
 
-exec --no-startup-id xss-lock --transfer-sleep-lock -- i3lock --nofork
+exec --no-startup-id xss-lock --transfer-sleep-lock -- ~/.config/i3/lock.sh
 
 exec --no-startup-id nm-applet
 
@@ -34,7 +34,7 @@ bindsym $mod+Shift+a exec --no-startup-id flameshot gui
 # ctrl tab 
 bindsym $mod+Tab workspace back_and_forth
 
-bindsym $mod+p exec --no-startup-id i3lock
+bindsym $mod+p exec --no-startup-id ~/.config/i3/lock.sh
 
 
 floating_modifier $mod
