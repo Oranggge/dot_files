@@ -46,6 +46,10 @@ bindsym $mod+q kill
 
 bindsym $mod+d exec --no-startup-id rofi -show drun
 
+# bluetooth device toggle + Pixel Buds ANC cycle
+bindsym $mod+b exec --no-startup-id ~/.local/bin/rofi-bt
+bindsym $mod+Shift+b exec --no-startup-id ~/.local/bin/rofi-anc
+
 bindsym $mod+h focus left
 bindsym $mod+j focus down
 bindsym $mod+k focus up
