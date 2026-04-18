@@ -39,17 +39,20 @@ in an always-visible bar.
 ## Layout
 
 - **i3 config:** `./i3/config` — **symlinked** to `~/.config/i3/config`
-- **Polybar:** `./polybar/` (canonical source, NOT symlinked to `~/.config/polybar/` —
-  see Deploy workflow below; may symlink in future)
+- **Polybar:** `./polybar/config.ini` — **symlinked** to `~/.config/polybar/config.ini`
+  (still needs polybar restart after edit, see Deploy workflow)
 - **Rofi:** `./rofi/` — **symlinked** (`config.rasi` + `gruvbox-dark.rasi` both link
   into `~/.config/rofi/`)
 - **Ghostty:** `./ghostty/config` — **symlinked** to `~/.config/ghostty/config`
-- **nvim:** `./init.vim`
+- **nvim:** `./init.vim` — **symlinked** to `~/.config/nvim/init.vim`
 - **tmux:** `./.tmux.conf` — **symlinked** to `~/.tmux.conf` (edits to the repo
   file take effect after `tmux source-file ~/.tmux.conf`). Decision log for
   copy-mode scroll UX lives inline in the config as the single source of truth.
-- **zsh:** `./.zshrc` — NOTE: the live `~/.zshrc` has drifted slightly
-  (extra lines for Go PATH, lazygit alias). Reconcile manually when editing.
+- **zsh:** `./.zshrc` — **symlinked** to `~/.zshrc`
+
+**Everything is now symlinked.** Editing any repo file affects the live system
+immediately. Disaster recovery: clone this repo and run the bootstrap commands
+(see below) to restore a machine from scratch.
 
 ### Open decisions
 
@@ -64,19 +67,41 @@ in an always-visible bar.
 
 ## Deploy workflow
 
-Polybar is NOT symlinked — changes in `./polybar/config.ini` must be copied to
-`~/.config/polybar/config.ini` and polybar restarted:
+All configs are symlinked, so edits to repo files are live immediately. Some
+services still need an explicit reload/restart for the new config to take effect:
+
+| Config  | Apply change with                                        |
+| ------- | -------------------------------------------------------- |
+| tmux    | `tmux source-file ~/.tmux.conf`                          |
+| i3      | `$mod+Shift+R` (or `i3-msg reload`)                      |
+| polybar | `polybar-msg cmd quit && nohup polybar main >/tmp/polybar.log 2>&1 & disown` |
+| nvim    | reopen, or `:source $MYVIMRC`                            |
+| zsh     | `source ~/.zshrc` or open a new shell                    |
+| rofi    | no reload — reads config on every invocation             |
+| ghostty | applies to new windows; existing windows keep old config |
+
+## Bootstrap a fresh machine
 
 ```
-cp polybar/config.ini ~/.config/polybar/config.ini
-polybar-msg cmd quit
-nohup polybar main >/tmp/polybar.log 2>&1 & disown
-```
+# Clone
+git clone git@github.com:Oranggge/dot_files.git ~/gits/dot_files
+cd ~/gits/dot_files
 
-Tmux IS symlinked — edit `./.tmux.conf` directly, then:
+# Create parent dirs that might not exist yet
+mkdir -p ~/.config/{nvim,polybar,rofi,ghostty,i3}
 
-```
-tmux source-file ~/.tmux.conf
+# Symlink everything
+ln -sf ~/gits/dot_files/.tmux.conf            ~/.tmux.conf
+ln -sf ~/gits/dot_files/.zshrc                ~/.zshrc
+ln -sf ~/gits/dot_files/init.vim              ~/.config/nvim/init.vim
+ln -sf ~/gits/dot_files/i3/config             ~/.config/i3/config
+ln -sf ~/gits/dot_files/ghostty/config        ~/.config/ghostty/config
+ln -sf ~/gits/dot_files/polybar/config.ini    ~/.config/polybar/config.ini
+ln -sf ~/gits/dot_files/rofi/config.rasi      ~/.config/rofi/config.rasi
+ln -sf ~/gits/dot_files/rofi/gruvbox-dark.rasi ~/.config/rofi/gruvbox-dark.rasi
+
+# Tmux plugins (manual, no TPM)
+git clone https://github.com/azorng/tmux-smooth-scroll ~/.tmux/plugins/tmux-smooth-scroll
 ```
 
 ## Tmux plugins
@@ -88,8 +113,4 @@ by explicit `run-shell` lines at the bottom of `.tmux.conf`.
   animates wheel + Ctrl-U/D + PgUp/Dn in copy mode. Settings (`speed/easing/normal`)
   and full rationale are documented inline in `.tmux.conf`.
 
-To reinstall on a fresh machine:
-
-```
-git clone https://github.com/azorng/tmux-smooth-scroll ~/.tmux/plugins/tmux-smooth-scroll
-```
+Reinstall step is in the Bootstrap section above.

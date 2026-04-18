@@ -207,3 +207,9 @@ unset _tf_cache
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
+
+# Go binaries (lazygit, etc.)
+export PATH="$HOME/go/bin:$PATH"
+
+# lazygit alias
+alias lg="lazygit"

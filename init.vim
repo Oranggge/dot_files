@@ -1,3 +1,5 @@
+let mapleader = " "
+
 call plug#begin()
 
 " List your plugins here
@@ -7,15 +9,17 @@ Plug 'morhetz/gruvbox'
 
 " Navigation
 Plug 'nvim-lua/plenary.nvim'
-Plug 'nvim-telescope/telescope.nvim', { 'tag': '0.2.2' }
+Plug 'nvim-telescope/telescope.nvim'
 Plug 'nvim-tree/nvim-web-devicons'
 Plug 'nvim-tree/nvim-tree.lua'
 Plug 'akinsho/bufferline.nvim', { 'tag': 'v4.*' }
-Plug 'nvim-treesitter/nvim-treesitter', { 'do': ':TSUpdate' }
+" Pinned to v0.10.0 — main branch requires Neovim 0.12+, unpin when Fedora ships 0.12
+Plug 'nvim-treesitter/nvim-treesitter', { 'tag': 'v0.10.0', 'do': ':TSUpdate' }
 Plug 'nvim-treesitter/nvim-treesitter-textobjects'
 Plug 'folke/which-key.nvim'
 Plug 'lewis6991/gitsigns.nvim'
 Plug 'lukas-reineke/indent-blankline.nvim'
+Plug 'sindrets/diffview.nvim'
 
 call plug#end()
 
@@ -31,6 +35,7 @@ require('neoscroll').setup({})
 require('nvim-tree').setup({
   view = { width = 30 },
   filters = { dotfiles = false },
+  update_focused_file = { enable = true },
 })
 
 -- Bufferline (tabs)
@@ -101,6 +106,10 @@ wk.add({
   { "<leader>gp", desc = "Preview hunk" },
   { "<leader>gb", desc = "Blame line" },
   { "<leader>gd", desc = "Diff file" },
+  { "<leader>gg", desc = "Lazygit" },
+  { "<leader>gv", desc = "Diffview open" },
+  { "<leader>gc", desc = "Diffview close" },
+  { "<leader>gl", desc = "Diffview file history" },
 })
 
 -- Gitsigns
@@ -123,6 +132,28 @@ require('gitsigns').setup({
     vim.keymap.set('n', '<leader>gd', gs.diffthis, opts)
   end,
 })
+
+-- Diffview
+require('diffview').setup({})
+vim.keymap.set('n', '<leader>gv', '<cmd>DiffviewOpen<cr>', { desc = 'Diffview open' })
+vim.keymap.set('n', '<leader>gc', '<cmd>DiffviewClose<cr>', { desc = 'Diffview close' })
+vim.keymap.set('n', '<leader>gl', '<cmd>DiffviewFileHistory %<cr>', { desc = 'Diffview file history' })
+
+-- Lazygit (opens in a floating terminal)
+vim.keymap.set('n', '<leader>gg', function()
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_open_win(buf, true, {
+    relative = 'editor',
+    width = math.floor(vim.o.columns * 0.9),
+    height = math.floor(vim.o.lines * 0.9),
+    col = math.floor(vim.o.columns * 0.05),
+    row = math.floor(vim.o.lines * 0.05),
+    style = 'minimal',
+    border = 'rounded',
+  })
+  vim.fn.termopen('lazygit', { on_exit = function() vim.api.nvim_buf_delete(buf, { force = true }) end })
+  vim.cmd('startinsert')
+end, { desc = 'Lazygit' })
 
 -- Indent guides
 require('ibl').setup({
@@ -205,6 +236,9 @@ set foldmethod=expr
 set foldexpr=v:lua.vim.treesitter.foldexpr()
 set foldlevel=99
 set foldcolumn=1
+
+" jj to exit insert mode
+inoremap jj <Esc>
 
 " Clear search highlight with Esc
 nnoremap <Esc> <cmd>noh<cr>
