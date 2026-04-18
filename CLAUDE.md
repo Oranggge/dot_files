@@ -8,14 +8,16 @@ Context for future sessions working on this dotfiles repo.
 - **WM:** i3 (config at `./config`, deployed as `~/.config/i3/config`)
 - **Bar:** polybar 3.7.2 (config at `./polybar/`)
 - **Terminal editor:** neovim (gruvbox theme, `./init.vim`)
-- **Multiplexer:** tmux (minimal grey status, `./.tmux.conf`)
+- **Multiplexer:** tmux (gruvbox-themed status bar with session pill + clock, `./.tmux.conf`, symlinked to `~/.tmux.conf`)
 - **Shell:** zsh (`./.zshrc`)
 - **Font:** JetBrainsMono Nerd Font (installed at `~/.local/share/fonts/JetBrainsMonoNF/`)
 
 ## Aesthetic
 
-Gruvbox Dark Hard palette everywhere. Minimal — no clutter, no decorative modules.
-Matches nvim (gruvbox) + tmux (no left/right status) philosophy.
+Gruvbox Dark Hard palette everywhere. Minimal — no clutter, no decorative modules
+in polybar/rofi. Tmux is the one place that *does* carry gruvbox styling in the
+status bar (session pill + window list + clock) since the extra info earns its spot
+in an always-visible bar.
 
 ## Polybar
 
@@ -41,7 +43,9 @@ Matches nvim (gruvbox) + tmux (no left/right status) philosophy.
 - **Rofi:** `./rofi/` (canonical source)
 - **Ghostty:** `./ghostty/config` (canonical source)
 - **nvim:** `./init.vim`
-- **tmux:** `./.tmux.conf`
+- **tmux:** `./.tmux.conf` — **symlinked** to `~/.tmux.conf` (edits to the repo
+  file take effect after `tmux source-file ~/.tmux.conf`). Decision log for
+  copy-mode scroll UX lives inline in the config as the single source of truth.
 - **zsh:** `./.zshrc` — NOTE: the live `~/.zshrc` has drifted slightly
   (extra lines for Go PATH, lazygit alias). Reconcile manually when editing.
 
@@ -65,4 +69,25 @@ Polybar is NOT symlinked — changes in `./polybar/config.ini` must be copied to
 cp polybar/config.ini ~/.config/polybar/config.ini
 polybar-msg cmd quit
 nohup polybar main >/tmp/polybar.log 2>&1 & disown
+```
+
+Tmux IS symlinked — edit `./.tmux.conf` directly, then:
+
+```
+tmux source-file ~/.tmux.conf
+```
+
+## Tmux plugins
+
+Manual install (no TPM). Plugins live under `~/.tmux/plugins/` and are loaded
+by explicit `run-shell` lines at the bottom of `.tmux.conf`.
+
+- **[azorng/tmux-smooth-scroll](https://github.com/azorng/tmux-smooth-scroll)** —
+  animates wheel + Ctrl-U/D + PgUp/Dn in copy mode. Settings (`speed/easing/normal`)
+  and full rationale are documented inline in `.tmux.conf`.
+
+To reinstall on a fresh machine:
+
+```
+git clone https://github.com/azorng/tmux-smooth-scroll ~/.tmux/plugins/tmux-smooth-scroll
 ```
