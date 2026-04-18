@@ -38,10 +38,12 @@ in an always-visible bar.
 
 ## Layout
 
-- **i3 config:** `./i3/config` (canonical, mirrors `~/.config/i3/config`)
-- **Polybar:** `./polybar/` (canonical source, NOT symlinked to `~/.config/polybar/`)
-- **Rofi:** `./rofi/` (canonical source)
-- **Ghostty:** `./ghostty/config` (canonical source)
+- **i3 config:** `./i3/config` — **symlinked** to `~/.config/i3/config`
+- **Polybar:** `./polybar/` (canonical source, NOT symlinked to `~/.config/polybar/` —
+  see Deploy workflow below; may symlink in future)
+- **Rofi:** `./rofi/` — **symlinked** (`config.rasi` + `gruvbox-dark.rasi` both link
+  into `~/.config/rofi/`)
+- **Ghostty:** `./ghostty/config` — **symlinked** to `~/.config/ghostty/config`
 - **nvim:** `./init.vim`
 - **tmux:** `./.tmux.conf` — **symlinked** to `~/.tmux.conf` (edits to the repo
   file take effect after `tmux source-file ~/.tmux.conf`). Decision log for
