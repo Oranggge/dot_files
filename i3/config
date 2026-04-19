@@ -177,8 +177,8 @@ client.placeholder      #928374 #1d2021 #ebdbb2 #928374   #1d2021
 client.background       #1d2021
 
 # Thin borders, no title bars, hide when only one window
-default_border          pixel 2
-default_floating_border pixel 2
+default_border          pixel 3
+default_floating_border pixel 3
 smart_borders           on
 gaps inner              6
 smart_gaps              on
