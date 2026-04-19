@@ -22,9 +22,13 @@ in an always-visible bar.
 ## Polybar
 
 - Bar name: `main` (not the default `example`)
-- Modules: `xworkspaces | (center) date | cpu memory pulseaudio wlan vpn battery`
+- Modules: `xworkspaces | (center) date | cpu memory headphones pulseaudio net vpn battery`
 - CPU/RAM turn alert-red above 80% via `format-warn`
 - Icons from JetBrainsMono Nerd Font
+- Net module uses `polybar/net.sh` — prefers wired link when an ethernet
+  interface has an IPv4 address, falls back to wireless, else ` offline`.
+  Shows `<icon> <ip>  󰇚 <down>  󰕒 <up>` with a 2s sample. Interface detection
+  is auto (skips lo, docker*, br-*, veth*, tun*, tailscale*, wg*, virbr*).
 - VPN module uses `polybar/vpn.sh` — detects tailscale then wireguard (see `polybar/SETUP.md`)
 
 ## Rofi (launcher)
@@ -103,6 +107,7 @@ ln -sf ~/gits/dot_files/init.vim              ~/.config/nvim/init.vim
 ln -sf ~/gits/dot_files/i3/config             ~/.config/i3/config
 ln -sf ~/gits/dot_files/ghostty/config        ~/.config/ghostty/config
 ln -sf ~/gits/dot_files/polybar/config.ini    ~/.config/polybar/config.ini
+ln -sf ~/gits/dot_files/polybar/net.sh        ~/.config/polybar/net.sh
 ln -sf ~/gits/dot_files/rofi/config.rasi      ~/.config/rofi/config.rasi
 ln -sf ~/gits/dot_files/rofi/gruvbox-dark.rasi ~/.config/rofi/gruvbox-dark.rasi
 
