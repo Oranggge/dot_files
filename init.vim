@@ -220,7 +220,15 @@ vim.api.nvim_create_autocmd('FileType', {
         name = 'angularls',
         cmd = { 'ngserver', '--stdio', '--tsProbeLocations', root .. '/node_modules', '--ngProbeLocations', node_prefix .. '/lib/node_modules' },
         root_dir = root,
-        on_attach = on_attach,
+        on_attach = function(client, bufnr)
+          -- ts_ls handles these for .ts files; silence angularls to avoid duplicate results.
+          client.server_capabilities.referencesProvider = false
+          client.server_capabilities.definitionProvider = false
+          client.server_capabilities.implementationProvider = false
+          client.server_capabilities.renameProvider = false
+          client.server_capabilities.hoverProvider = false
+          on_attach(client, bufnr)
+        end,
       })
     end
 
