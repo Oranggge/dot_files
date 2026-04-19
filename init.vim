@@ -20,6 +20,7 @@ Plug 'folke/which-key.nvim'
 Plug 'lewis6991/gitsigns.nvim'
 Plug 'lukas-reineke/indent-blankline.nvim'
 Plug 'sindrets/diffview.nvim'
+Plug 'folke/trouble.nvim'
 
 call plug#end()
 
@@ -75,6 +76,29 @@ require('telescope').setup({
   },
 })
 
+-- Trouble (unified panel for diagnostics, references, symbols, call hierarchy)
+require('trouble').setup({
+  modes = {
+    lsp_references = {
+      -- Sort order for `gr`: current file first, test/spec files last, then
+      -- alphabetical by filename and natural line/col order.
+      sort = {
+        { buf = 0 },
+        function(item)
+          local f = (item.filename or ""):lower()
+          local is_test = f:match("[/._-]tests?[/._-]")
+              or f:match("[/._-]spec[/._-]")
+              or f:match("%.test%.")
+              or f:match("%.spec%.")
+          return is_test and 1 or 0
+        end,
+        "filename",
+        "pos",
+      },
+    },
+  },
+})
+
 -- Which-key
 local wk = require('which-key')
 wk.setup()
@@ -89,6 +113,13 @@ wk.add({
   { "<leader>h", desc = "Jump to explorer" },
   { "<leader>l", desc = "Jump to editor" },
   { "<leader>x", desc = "Close buffer" },
+  { "<leader>t", group = "Trouble" },
+  { "<leader>tt", desc = "Workspace diagnostics" },
+  { "<leader>tb", desc = "Buffer diagnostics" },
+  { "<leader>ts", desc = "Symbols outline" },
+  { "<leader>tr", desc = "LSP references" },
+  { "<leader>td", desc = "LSP definitions" },
+  { "<leader>ti", desc = "LSP implementations" },
   { "<leader>rn", desc = "Rename symbol" },
   { "<leader>ca", desc = "Code actions" },
   { "<leader>D", desc = "Delete + yank" },
@@ -182,7 +213,7 @@ local on_attach = function(client, bufnr)
   local opts = { buffer = bufnr }
   vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
   vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, opts)
-  vim.keymap.set('n', 'gr', vim.lsp.buf.references, opts)
+  vim.keymap.set('n', 'gr', '<cmd>Trouble lsp_references toggle focus=true<cr>', opts)
   vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, opts)
   vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
   vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, opts)
@@ -271,6 +302,16 @@ nnoremap <leader>l <cmd>wincmd l<cr>
 nnoremap <Tab> <cmd>BufferLineCycleNext<cr>
 nnoremap <S-Tab> <cmd>BufferLineCyclePrev<cr>
 nnoremap <leader>x <cmd>bd<cr>
+
+" --- Trouble (unified panel) ---
+" tt workspace diagnostics    tb buffer diagnostics   ts symbols outline
+" tr LSP references           td definitions          ti implementations
+nnoremap <leader>tt <cmd>Trouble diagnostics toggle<cr>
+nnoremap <leader>tb <cmd>Trouble diagnostics toggle filter.buf=0<cr>
+nnoremap <leader>ts <cmd>Trouble symbols toggle focus=false win.position=right<cr>
+nnoremap <leader>tr <cmd>Trouble lsp_references toggle focus=true<cr>
+nnoremap <leader>td <cmd>Trouble lsp_definitions toggle focus=true<cr>
+nnoremap <leader>ti <cmd>Trouble lsp_implementations toggle focus=true<cr>
 
 
 " ignore case search, set number, and copy copy to clipboard
