@@ -213,9 +213,12 @@ vim.api.nvim_create_autocmd('FileType', {
     local is_angular = root and vim.fn.filereadable(root .. '/angular.json') == 1
 
     if is_angular then
+      -- Derive the global node_modules from whatever `node` PATH resolves
+      -- to, so this stays correct across nvm upgrades.
+      local node_prefix = vim.fn.fnamemodify(vim.fn.exepath('node'), ':h:h')
       vim.lsp.start({
         name = 'angularls',
-        cmd = { 'ngserver', '--stdio', '--tsProbeLocations', root .. '/node_modules', '--ngProbeLocations', vim.fn.expand('~/.nvm/versions/node/v24.12.0/lib/node_modules') },
+        cmd = { 'ngserver', '--stdio', '--tsProbeLocations', root .. '/node_modules', '--ngProbeLocations', node_prefix .. '/lib/node_modules' },
         root_dir = root,
         on_attach = on_attach,
       })

@@ -49,6 +49,11 @@ in an always-visible bar.
   file take effect after `tmux source-file ~/.tmux.conf`). Decision log for
   copy-mode scroll UX lives inline in the config as the single source of truth.
 - **zsh:** `./.zshrc` — **symlinked** to `~/.zshrc`
+- **zsh env:** `./.zshenv` — **symlinked** to `~/.zshenv`. Sourced for ALL zsh
+  invocations (login, interactive, scripts). Sets PATH here (not `.zshrc`) so
+  GUI-launched apps like nvim-from-i3 inherit nvm's default node — otherwise
+  language servers (`ngserver`, `typescript-language-server`) living under
+  `~/.nvm/versions/node/<ver>/bin` aren't findable.
 
 **Everything is now symlinked.** Editing any repo file affects the live system
 immediately. Disaster recovery: clone this repo and run the bootstrap commands
@@ -93,6 +98,7 @@ mkdir -p ~/.config/{nvim,polybar,rofi,ghostty,i3}
 # Symlink everything
 ln -sf ~/gits/dot_files/.tmux.conf            ~/.tmux.conf
 ln -sf ~/gits/dot_files/.zshrc                ~/.zshrc
+ln -sf ~/gits/dot_files/.zshenv               ~/.zshenv
 ln -sf ~/gits/dot_files/init.vim              ~/.config/nvim/init.vim
 ln -sf ~/gits/dot_files/i3/config             ~/.config/i3/config
 ln -sf ~/gits/dot_files/ghostty/config        ~/.config/ghostty/config

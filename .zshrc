@@ -166,14 +166,9 @@ export SDKMAN_DIR="$HOME/.sdkman"
 [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
 
 # NVM: lazy-loaded. First call to nvm/node/npm/npx sources nvm.sh on demand.
+# Default node is already on PATH via ~/.zshenv (so GUI-launched apps see it
+# too, not just interactive terminals).
 export NVM_DIR="$HOME/.nvm"
-# Put nvm's default node on PATH without sourcing nvm.sh (saves ~800ms startup).
-[ -d "$NVM_DIR/versions/node" ] && {
-  _nvm_default=$(cat "$NVM_DIR/alias/default" 2>/dev/null)
-  [ -n "$_nvm_default" ] && [ -d "$NVM_DIR/versions/node/$_nvm_default/bin" ] \
-    && export PATH="$NVM_DIR/versions/node/$_nvm_default/bin:$PATH"
-  unset _nvm_default
-}
 _nvm_lazy_load() {
   unset -f nvm node npm npx
   [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
