@@ -21,6 +21,7 @@ Plug 'lewis6991/gitsigns.nvim'
 Plug 'lukas-reineke/indent-blankline.nvim'
 Plug 'sindrets/diffview.nvim'
 Plug 'folke/trouble.nvim'
+Plug 'MeanderingProgrammer/render-markdown.nvim'
 
 call plug#end()
 
@@ -185,6 +186,38 @@ vim.keymap.set('n', '<leader>gg', function()
   vim.fn.termopen('lazygit', { on_exit = function() vim.api.nvim_buf_delete(buf, { force = true }) end })
   vim.cmd('startinsert')
 end, { desc = 'Lazygit' })
+
+-- Render markdown inline (headings, code blocks, bullets, tables, checkboxes)
+require('render-markdown').setup({})
+
+-- In markdown buffers, <CR> follows the link under the cursor:
+--   [text](path.md)  → :edit path.md (resolved relative to current file)
+--   [text](https://) → opens in system browser via vim.ui.open
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'markdown',
+  callback = function()
+    vim.keymap.set('n', '<CR>', function()
+      local line = vim.api.nvim_get_current_line()
+      local col = vim.api.nvim_win_get_cursor(0)[2] + 1
+      local start = 1
+      while true do
+        local s, e, target = line:find('%[[^%]]*%]%(([^%)]+)%)', start)
+        if not s then return end
+        if col >= s and col <= e then
+          if target:match('^%w+://') then
+            vim.ui.open(target)
+          else
+            target = target:gsub('#.*$', '')
+            local dir = vim.fn.expand('%:p:h')
+            vim.cmd('edit ' .. vim.fn.fnameescape(dir .. '/' .. target))
+          end
+          return
+        end
+        start = e + 1
+      end
+    end, { buffer = true, desc = 'Follow markdown link' })
+  end,
+})
 
 -- Indent guides
 require('ibl').setup({
