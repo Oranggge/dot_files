@@ -113,7 +113,18 @@ ln -sf ~/gits/dot_files/rofi/gruvbox-dark.rasi ~/.config/rofi/gruvbox-dark.rasi
 
 # Tmux plugins (manual, no TPM)
 git clone https://github.com/azorng/tmux-smooth-scroll ~/.tmux/plugins/tmux-smooth-scroll
+git clone https://github.com/accessd/tmux-agent-indicator ~/.tmux/plugins/tmux-agent-indicator
 ```
+
+The `tmux-agent-indicator` plugin needs Claude Code hooks installed in
+`~/.claude/settings.json` (NOT a symlinked dotfile — it's the global Claude
+Code config). The hooks fire on `UserPromptSubmit` (running), `PermissionRequest`
+(needs-input), and `Stop` (done), each calling
+`~/.tmux/plugins/tmux-agent-indicator/scripts/agent-state.sh --agent claude --state <state>`.
+On a fresh machine, either re-add those entries by hand from the live config, or
+run the plugin's installer (`bash ~/.tmux/plugins/tmux-agent-indicator/install.sh`).
+Do **not** run the curl-pipe-bash one-liner — it'd touch other files (`~/.codex/config.toml`,
+`~/.config/opencode/`) we don't currently want it to manage.
 
 ## Tmux plugins
 
@@ -123,5 +134,12 @@ by explicit `run-shell` lines at the bottom of `.tmux.conf`.
 - **[azorng/tmux-smooth-scroll](https://github.com/azorng/tmux-smooth-scroll)** —
   animates wheel + Ctrl-U/D + PgUp/Dn in copy mode. Settings (`speed/easing/normal`)
   and full rationale are documented inline in `.tmux.conf`.
+- **[accessd/tmux-agent-indicator](https://github.com/accessd/tmux-agent-indicator)** —
+  visual feedback for AI agent states. Pane border + window-title color flip
+  to gruvbox yellow on `needs-input` and gruvbox green/red on `done`, so you
+  can see across panes/windows when an agent finished or is waiting on you.
+  Tmux config (palette overrides, `reset-on-focus`, animation off) is in
+  `.tmux.conf`. Claude Code hook config lives in `~/.claude/settings.json`
+  (UserPromptSubmit / PermissionRequest / Stop) — see Bootstrap below.
 
 Reinstall step is in the Bootstrap section above.
