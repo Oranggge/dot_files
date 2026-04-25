@@ -91,6 +91,19 @@ set $ws8 "8"
 set $ws9 "9"
 set $ws10 "10"
 
+# Pin workspaces to outputs — home dual-monitor setup.
+# Fallback to eDP-1 so the laptop alone still gets workspaces when undocked;
+# i3 picks the first output in the list that exists.
+workspace $ws1 output DP-3-2 eDP-1
+workspace $ws2 output DP-3-2 eDP-1
+workspace $ws3 output DP-3-2 eDP-1
+workspace $ws4 output DP-3-2 eDP-1
+workspace $ws5 output DP-3-2 eDP-1
+workspace $ws6 output DP-3-1 eDP-1
+workspace $ws7 output DP-3-1 eDP-1
+workspace $ws8 output DP-3-1 eDP-1
+workspace $ws9 output DP-3-1 eDP-1
+
 bindsym $mod+1 workspace number $ws1
 bindsym $mod+2 workspace number $ws2
 bindsym $mod+3 workspace number $ws3
