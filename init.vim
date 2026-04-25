@@ -341,7 +341,7 @@ nnoremap <leader>x <cmd>bd<cr>
 " tr LSP references           td definitions          ti implementations
 nnoremap <leader>tt <cmd>Trouble diagnostics toggle<cr>
 nnoremap <leader>tb <cmd>Trouble diagnostics toggle filter.buf=0<cr>
-nnoremap <leader>ts <cmd>Trouble symbols toggle focus=false win.position=right<cr>
+nnoremap <leader>ts <cmd>Trouble symbols toggle focus=false win.position=right win.size=50<cr>
 nnoremap <leader>tr <cmd>Trouble lsp_references toggle focus=true<cr>
 nnoremap <leader>td <cmd>Trouble lsp_definitions toggle focus=true<cr>
 nnoremap <leader>ti <cmd>Trouble lsp_implementations toggle focus=true<cr>
@@ -351,6 +351,9 @@ nnoremap <leader>ti <cmd>Trouble lsp_implementations toggle focus=true<cr>
 set ignorecase
 set number
 set clipboard=unnamedplus
+
+" keep cursor vertically centered — screen scrolls around it
+set scrolloff=999
 " --- Delete / change without yanking (Neovim init.vim) ---
 
 " Delete (normal + visual) — never touch unnamed register
@@ -388,4 +391,7 @@ xnoremap <leader>Y "+d
 " 1) With the remaps above, all your d/x/c/s go to the black-hole register.
 " 2) To force a one-off yanky delete with registers, you can also type: ""d  (double quote then d)
 " 3) Yank commands (y, yy, Y) are untouched and still fill the unnamed/clipboard registers normally.
+
+" <leader>yy — yank current file's absolute path to system clipboard
+nnoremap <leader>yy :let @+=expand('%:p')<CR>:echo 'copied: ' . expand('%:p')<CR>
 
