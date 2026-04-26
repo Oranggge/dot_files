@@ -116,6 +116,16 @@ alias cl="/usr/bin/clear"
 #alias man="/usr/bin/catman"
 alias b="/usr/bin/bluetoothctl"
 alias rm="/usr/bin/rm -i"
+# nvim wrapper: if <leader>cd was pressed inside, cd the shell to that dir on exit.
+# Mirrors the y() pattern below — temp file populated by the keymap in init.vim.
+function nvim() {
+	local tmp="$(mktemp -t "nvim-cwd.XXXXXX")" cwd
+	NVIM_CD_FILE="$tmp" command nvim "$@"
+	if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+		builtin cd -- "$cwd"
+	fi
+	rm -f -- "$tmp"
+}
 alias vi="nvim"
 #alias x="xmodmap ~/.Xmodmap"
 alias cop="xclip -selection clipboard"

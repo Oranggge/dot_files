@@ -110,6 +110,7 @@ wk.add({
   { "<leader>fw", desc = "Find word under cursor" },
   { "<leader>fb", desc = "Find buffers" },
   { "<leader>fh", desc = "Find help" },
+  { "<leader>cd", desc = "Cd shell here on exit" },
   { "<leader>e", desc = "Toggle explorer" },
   { "<leader>h", desc = "Jump to explorer" },
   { "<leader>l", desc = "Jump to editor" },
@@ -330,6 +331,40 @@ nnoremap <leader>fh <cmd>Telescope help_tags<cr>
 nnoremap <leader>e <cmd>NvimTreeToggle<cr>
 nnoremap <leader>h <cmd>NvimTreeFocus<cr>
 nnoremap <leader>l <cmd>wincmd l<cr>
+
+" <leader>cd — quit nvim and drop the shell into the dir under cursor.
+" Pairs with the nvim() wrapper in .zshrc, which reads $NVIM_CD_FILE on exit.
+" In nvim-tree: dir node → that dir, file node → its parent.
+" In netrw:     b:netrw_curdir.
+" Elsewhere:    getcwd().
+lua << EOF
+vim.keymap.set('n', '<leader>cd', function()
+  local cd_file = vim.env.NVIM_CD_FILE
+  if not cd_file or cd_file == '' then
+    vim.notify('NVIM_CD_FILE not set — launch nvim via the shell wrapper', vim.log.levels.WARN)
+    return
+  end
+
+  local target
+  local ft = vim.bo.filetype
+  if ft == 'NvimTree' then
+    local ok, api = pcall(require, 'nvim-tree.api')
+    if ok then
+      local node = api.tree.get_node_under_cursor()
+      if node and node.absolute_path then
+        target = node.type == 'directory' and node.absolute_path
+                 or vim.fn.fnamemodify(node.absolute_path, ':h')
+      end
+    end
+  elseif ft == 'netrw' then
+    target = vim.b.netrw_curdir
+  end
+  target = target or vim.fn.getcwd()
+
+  vim.fn.writefile({ target }, cd_file)
+  vim.cmd('qa')
+end, { desc = 'Cd shell here on exit' })
+EOF
 
 " Bufferline — navigate tabs
 nnoremap <Tab> <cmd>BufferLineCycleNext<cr>
