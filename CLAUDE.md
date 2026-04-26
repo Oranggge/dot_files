@@ -42,13 +42,17 @@ in an always-visible bar.
 
 ## Layout
 
-- **i3 config:** `./i3/config` — **symlinked** to `~/.config/i3/config`
+- **i3 config:** `./i3/config` — **symlinked** to `~/.config/i3/config`. `./i3/lock.sh` is **symlinked** to `~/.config/i3/lock.sh`. X11 idle blanking/DPMS is disabled while unlocked; `./i3/lock.sh` temporarily enables DPMS while locked so the display can power off only behind the lock screen.
 - **Polybar:** `./polybar/config.ini` — **symlinked** to `~/.config/polybar/config.ini`
   (still needs polybar restart after edit, see Deploy workflow)
 - **Rofi:** `./rofi/` — **symlinked** (`config.rasi` + `gruvbox-dark.rasi` both link
   into `~/.config/rofi/`)
 - **Ghostty:** `./ghostty/config` — **symlinked** to `~/.config/ghostty/config`
-- **nvim:** `./init.vim` — **symlinked** to `~/.config/nvim/init.vim`
+- **nvim:** `./init.vim` — **symlinked** to `~/.config/nvim/init.vim`. `vi`/`nvim`
+  is a zsh **function** (not bare nvim) that pairs with `<leader>cd` to drop the
+  shell into the folder under cursor on exit. Target is the nvim-tree node under
+  cursor (dir → itself, file → parent), netrw's `b:netrw_curdir`, or `getcwd()`.
+  Same temp-file pattern as `y()` for yazi.
 - **tmux:** `./.tmux.conf` — **symlinked** to `~/.tmux.conf` (edits to the repo
   file take effect after `tmux source-file ~/.tmux.conf`). Decision log for
   copy-mode scroll UX lives inline in the config as the single source of truth.
@@ -105,6 +109,7 @@ ln -sf ~/gits/dot_files/.zshrc                ~/.zshrc
 ln -sf ~/gits/dot_files/.zshenv               ~/.zshenv
 ln -sf ~/gits/dot_files/init.vim              ~/.config/nvim/init.vim
 ln -sf ~/gits/dot_files/i3/config             ~/.config/i3/config
+ln -sf ~/gits/dot_files/i3/lock.sh            ~/.config/i3/lock.sh
 ln -sf ~/gits/dot_files/ghostty/config        ~/.config/ghostty/config
 ln -sf ~/gits/dot_files/polybar/config.ini    ~/.config/polybar/config.ini
 ln -sf ~/gits/dot_files/polybar/net.sh        ~/.config/polybar/net.sh
