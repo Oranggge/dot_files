@@ -4,6 +4,14 @@
 
 set -eu
 
+# Guard against re-entry. xss-lock re-fires lock.sh whenever the X11 screen
+# saver activates (e.g. after `xset dpms force off` below), so without this
+# we'd schedule a new force-off every cycle and the screen would keep
+# turning off every 5s while typing the password.
+if pgrep -x i3lock >/dev/null; then
+  exit 0
+fi
+
 CACHE="${XDG_RUNTIME_DIR:-/tmp}/i3lock-shot.png"
 
 # Capture -> pixelate (fast) -> dim toward gruvbox bg0_h.
@@ -14,6 +22,15 @@ convert "$CACHE" \
   -scale 10% -scale 1000% \
   -fill '#1d2021' -colorize 45% \
   "$CACHE"
+
+# Send the monitor to DPMS-standby ~30s after locking. We use `standby`
+# (not `off`) because standby wakes nearly instantly — `off` cuts the signal
+# and forces a re-handshake on wake, which feels sluggish. The X11 idle
+# timer is unusable on this machine (background apps keep resetting it), so
+# we issue the DPMS state directly. Timeouts=0 keeps the screen from
+# auto-blanking once unlocked.
+xset +dpms dpms 0 0 0 >/dev/null 2>&1 || true
+(sleep 30 && xset dpms force standby >/dev/null 2>&1 || true) &
 
 # Gruvbox palette (RRGGBBAA)
 RING='3c3836ff'

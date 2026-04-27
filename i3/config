@@ -7,6 +7,10 @@ exec --no-startup-id dex-autostart --autostart --environment i3
 
 exec --no-startup-id xss-lock --transfer-sleep-lock -- ~/.config/i3/lock.sh
 
+# Disable X11 idle blanking/DPMS while the session is unlocked.
+# lock.sh temporarily re-enables DPMS, so the display may turn off only after locking.
+exec_always --no-startup-id xset s off s noblank -dpms
+
 exec --no-startup-id nm-applet
 
 bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ +10%
