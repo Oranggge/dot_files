@@ -42,7 +42,7 @@ in an always-visible bar.
 
 ## Layout
 
-- **i3 config:** `./i3/config` — **symlinked** to `~/.config/i3/config`. `./i3/lock.sh` is **symlinked** to `~/.config/i3/lock.sh`. X11 idle blanking/DPMS is disabled while unlocked; `./i3/lock.sh` temporarily enables DPMS while locked so the display can power off only behind the lock screen.
+- **i3 config:** `./i3/config` — **symlinked** to `~/.config/i3/config`. `./i3/lock.sh` is **symlinked** to `~/.config/i3/lock.sh`. X11 idle blanking/DPMS is disabled while unlocked; `./i3/lock.sh` temporarily enables DPMS while locked so the display can power off only behind the lock screen. A `systemd-inhibit --what=handle-lid-switch` runs for the life of the i3 session (long-lived `sleep infinity` process — leave it alone) so closing the lid doesn't suspend. Reason: USB-C/TB docks aren't classified "docked" by logind, so `HandleLidSwitchDocked=ignore` never fires and the default `HandleLidSwitch=suspend` would otherwise trip → `xss-lock` → screen locked. The inhibitor is the chosen fix because it lives in this repo (no `/etc/` edits) and survives a fresh-machine bootstrap. Caveat: lid-close on battery also won't suspend — if you ever need that, swap to a logind drop-in with `HandleLidSwitchExternalPower=ignore` instead.
 - **Polybar:** `./polybar/config.ini` — **symlinked** to `~/.config/polybar/config.ini`
   (still needs polybar restart after edit, see Deploy workflow)
 - **Rofi:** `./rofi/` — **symlinked** (`config.rasi` + `gruvbox-dark.rasi` both link
