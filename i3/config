@@ -12,7 +12,7 @@ exec --no-startup-id xss-lock --transfer-sleep-lock -- ~/.config/i3/lock.sh
 # fire; HandleLidSwitch=suspend kicks in -> PrepareForSleep -> xss-lock
 # locks the screen. The inhibitor holds a block:handle-lid-switch lock
 # for the life of the i3 session.
-exec --no-startup-id sh -c 'pkill -f "systemd-inhibit --what=handle-lid-switch --who=i3" 2>/dev/null; exec systemd-inhibit --what=handle-lid-switch --who=i3 --why="external monitors" --mode=block sleep infinity'
+exec --no-startup-id ~/.config/i3/inhibit-lid.sh
 
 # Disable X11 idle blanking/DPMS while the session is unlocked.
 # lock.sh temporarily re-enables DPMS, so the display may turn off only after locking.
