@@ -42,7 +42,7 @@ in an always-visible bar.
 
 ## Layout
 
-- **i3 config:** `./i3/config` — **symlinked** to `~/.config/i3/config`. `./i3/lock.sh` is **symlinked** to `~/.config/i3/lock.sh`. X11 idle blanking/DPMS is disabled while unlocked; `./i3/lock.sh` temporarily enables DPMS while locked so the display can power off only behind the lock screen. A `systemd-inhibit --what=handle-lid-switch` runs for the life of the i3 session (long-lived `sleep infinity` process — leave it alone) so closing the lid doesn't suspend. Reason: USB-C/TB docks aren't classified "docked" by logind, so `HandleLidSwitchDocked=ignore` never fires and the default `HandleLidSwitch=suspend` would otherwise trip → `xss-lock` → screen locked. The inhibitor is the chosen fix because it lives in this repo (no `/etc/` edits) and survives a fresh-machine bootstrap. Caveat: lid-close on battery also won't suspend — if you ever need that, swap to a logind drop-in with `HandleLidSwitchExternalPower=ignore` instead.
+- **i3 config:** `./i3/config` — **symlinked** to `~/.config/i3/config`. `./i3/lock.sh` is **symlinked** to `~/.config/i3/lock.sh`. X11 idle blanking/DPMS is disabled while unlocked; `./i3/lock.sh` temporarily enables DPMS while locked so the display can power off only behind the lock screen. Lid-close behavior is handled entirely by logind via `./logind/lid.conf`, **copied** (not symlinked) to `/etc/systemd/logind.conf.d/lid.conf`. Symlink doesn't work here: SELinux confines `systemd-logind` to `systemd_logind_t`, which can't traverse `user_home_dir_t` (your `0700` home dir) to follow a symlink into the repo. Copy gets the correct `systemd_conf_t` context automatically. Re-deploy after editing the repo file with the `logind` row in the Deploy table. Per `logind.conf(5)`, when more than one display is connected (`/sys/class/drm/*/status`) logind uses `HandleLidSwitchDocked=` regardless of ACPI dock state — so the USB-C/TB "not classified docked" issue is moot as long as external monitors are attached. Drop-in sets `HandleLidSwitchDocked=lock`: docked → screen locks, no suspend; undocked → default `HandleLidSwitch=suspend` fires, `xss-lock` locks before the suspend. **Do not re-introduce a `block:handle-lid-switch` inhibitor** — that swallows lid events entirely (no suspend, no lock) and was the cause of the 2026-05 dead-battery incident.
 - **Polybar:** `./polybar/config.ini` — **symlinked** to `~/.config/polybar/config.ini`
   (still needs polybar restart after edit, see Deploy workflow)
 - **Rofi:** `./rofi/` — **symlinked** (`config.rasi` + `gruvbox-dark.rasi` both link
@@ -92,6 +92,7 @@ services still need an explicit reload/restart for the new config to take effect
 | zsh     | `source ~/.zshrc` or open a new shell                    |
 | rofi    | no reload — reads config on every invocation             |
 | ghostty | applies to new windows; existing windows keep old config |
+| logind  | `sudo install -m 644 ~/gits/dot_files/logind/lid.conf /etc/systemd/logind.conf.d/lid.conf && sudo systemctl reload systemd-logind` |
 
 ## Bootstrap a fresh machine
 
@@ -115,6 +116,11 @@ ln -sf ~/gits/dot_files/polybar/config.ini    ~/.config/polybar/config.ini
 ln -sf ~/gits/dot_files/polybar/net.sh        ~/.config/polybar/net.sh
 ln -sf ~/gits/dot_files/rofi/config.rasi      ~/.config/rofi/config.rasi
 ln -sf ~/gits/dot_files/rofi/gruvbox-dark.rasi ~/.config/rofi/gruvbox-dark.rasi
+
+# logind drop-in (lid behavior — needs sudo, copy not symlink, see Layout)
+sudo mkdir -p /etc/systemd/logind.conf.d/
+sudo install -m 644 ~/gits/dot_files/logind/lid.conf /etc/systemd/logind.conf.d/lid.conf
+sudo systemctl reload systemd-logind
 
 # Tmux plugins (manual, no TPM)
 git clone https://github.com/azorng/tmux-smooth-scroll ~/.tmux/plugins/tmux-smooth-scroll
