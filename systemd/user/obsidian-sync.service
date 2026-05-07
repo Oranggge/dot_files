@@ -1,0 +1,16 @@
+[Unit]
+Description=Obsidian Sync (headless, continuous)
+Documentation=https://github.com/obsidianmd/obsidian-headless
+After=network-online.target graphical-session.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=%h/gits/dot_files/obsidian/sync.sh
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

@@ -40,6 +40,37 @@ in an always-visible bar.
   (like qutebrowser at `/usr/local/bin/qutebrowser`) need a desktop entry —
   see `./applications/qutebrowser.desktop` for the pattern.
 
+## Obsidian Sync (headless)
+
+Vault `~/Documents/knowledge/` (remote vault `knowledge`, id
+`afea1e3f01942dce3cc2a06afd6631bb`) stays continuously synced via
+[`obsidian-headless`](https://github.com/obsidianmd/obsidian-headless) — the
+official `ob` CLI from Obsidian (npm package, requires Node 22+). Runs as a
+systemd **user** service so sync continues whenever the user is logged in,
+GUI Obsidian closed or not. Bidirectional, conflict-strategy=`merge`,
+device-name=`fedora-main`. Auth lives in the GNOME keyring (Secret Service)
+once `ob login` has been run interactively.
+
+- Wrapper: `./obsidian/sync.sh` — sources nvm before `exec ob sync --continuous`
+  so the service finds `ob` regardless of which Node version is current.
+- Service: `./systemd/user/obsidian-sync.service` — symlinked to
+  `~/.config/systemd/user/obsidian-sync.service`. `Restart=on-failure`,
+  `RestartSec=10s`, `StartLimitBurst=5/300s` to back off if auth breaks.
+- **desk24** also runs `obsidian-headless` continuously in `bidirectional` mode
+  (set up 2026-05-06). Wrapper + unit live directly on desk24 at
+  `~/.local/bin/obsidian-sync.sh` and `~/.config/systemd/user/obsidian-sync.service`
+  (vault path there is `~/Obsidian/`, not the laptop's `~/Documents/knowledge/`,
+  hence no shared dotfiles for that piece).
+- **Recovery convention** (when a machine has been offline long enough that
+  local files have drifted from remote — e.g. desk24 had a 15-day gap on
+  2026-05-06): tar a backup of the local vault, flip to `mirror-remote`
+  for ONE pass to overwrite local with remote (`ob sync-config --mode
+  mirror-remote && ob sync`), verify, then flip back to `bidirectional`
+  and restart the service. Do not leave a regularly-used machine on
+  `mirror-remote` permanently — local edits there get silently reverted.
+
+Tail the journal: `journalctl --user -u obsidian-sync.service -f`.
+
 ## Layout
 
 - **i3 config:** `./i3/config` — **symlinked** to `~/.config/i3/config`. `./i3/lock.sh` is **symlinked** to `~/.config/i3/lock.sh`. X11 idle blanking/DPMS is disabled while unlocked; `./i3/lock.sh` temporarily enables DPMS while locked so the display can power off only behind the lock screen. Lid-close behavior is handled entirely by logind via `./logind/lid.conf`, **copied** (not symlinked) to `/etc/systemd/logind.conf.d/lid.conf`. Symlink doesn't work here: SELinux confines `systemd-logind` to `systemd_logind_t`, which can't traverse `user_home_dir_t` (your `0700` home dir) to follow a symlink into the repo. Copy gets the correct `systemd_conf_t` context automatically. Re-deploy after editing the repo file with the `logind` row in the Deploy table. Per `logind.conf(5)`, when more than one display is connected (`/sys/class/drm/*/status`) logind uses `HandleLidSwitchDocked=` regardless of ACPI dock state — so the USB-C/TB "not classified docked" issue is moot as long as external monitors are attached. Drop-in sets `HandleLidSwitchDocked=lock`: docked → screen locks, no suspend; undocked → default `HandleLidSwitch=suspend` fires, `xss-lock` locks before the suspend. **Do not re-introduce a `block:handle-lid-switch` inhibitor** — that swallows lid events entirely (no suspend, no lock) and was the cause of the 2026-05 dead-battery incident.
@@ -93,6 +124,7 @@ services still need an explicit reload/restart for the new config to take effect
 | rofi    | no reload — reads config on every invocation             |
 | ghostty | applies to new windows; existing windows keep old config |
 | logind  | `sudo install -m 644 ~/gits/dot_files/logind/lid.conf /etc/systemd/logind.conf.d/lid.conf && sudo systemctl reload systemd-logind` |
+| obsidian-sync | `systemctl --user daemon-reload && systemctl --user restart obsidian-sync.service` |
 
 ## Bootstrap a fresh machine
 
@@ -121,6 +153,15 @@ ln -sf ~/gits/dot_files/rofi/gruvbox-dark.rasi ~/.config/rofi/gruvbox-dark.rasi
 sudo mkdir -p /etc/systemd/logind.conf.d/
 sudo install -m 644 ~/gits/dot_files/logind/lid.conf /etc/systemd/logind.conf.d/lid.conf
 sudo systemctl reload systemd-logind
+
+# Obsidian Sync (headless) — requires Node 22+ via nvm and an Obsidian Sync subscription
+npm install -g obsidian-headless
+ob login                                   # interactive: email + password + MFA
+cd ~/Documents/knowledge && ob sync-setup --vault knowledge
+mkdir -p ~/.config/systemd/user
+ln -sf ~/gits/dot_files/systemd/user/obsidian-sync.service ~/.config/systemd/user/obsidian-sync.service
+systemctl --user daemon-reload
+systemctl --user enable --now obsidian-sync.service
 
 # Tmux plugins (manual, no TPM)
 git clone https://github.com/azorng/tmux-smooth-scroll ~/.tmux/plugins/tmux-smooth-scroll
