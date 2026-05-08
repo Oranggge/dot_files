@@ -12,6 +12,13 @@ if pgrep -x i3lock >/dev/null; then
   exit 0
 fi
 
+# Auto-suspend 30 min after locking. Self-cancels if user unlocks before then
+# (i3lock exits -> pgrep finds nothing -> systemctl suspend skipped). Time-based,
+# not idle-based, because X idle is unreliable on this machine. Covers the case
+# where lid is open + screen locked + AC pulled, which logind alone can't see.
+(sleep 1800; pgrep -x i3lock >/dev/null && systemctl suspend) </dev/null >/dev/null 2>&1 &
+disown
+
 CACHE="${XDG_RUNTIME_DIR:-/tmp}/i3lock-shot.png"
 
 # Capture -> pixelate (fast) -> dim toward gruvbox bg0_h.
