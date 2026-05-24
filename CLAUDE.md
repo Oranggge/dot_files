@@ -22,9 +22,29 @@ in an always-visible bar.
 ## Polybar
 
 - Bar name: `main` (not the default `example`)
-- Modules: `xworkspaces | (center) date | cpu memory headphones pulseaudio net vpn battery`
-- CPU/RAM turn alert-red above 80% via `format-warn`
+- Modules: `xworkspaces | (center) date | psi load ram disk temp headphones pulseaudio net vpn battery`
 - Icons from JetBrainsMono Nerd Font
+- **System health philosophy (rebuilt 2026-05-15):** the previous `cpu` + `memory`
+  modules were ambient-noise — they turned red above 80% just because the box was
+  busy with browsers and AI agents, training the eye to ignore the alert. They've
+  been replaced with four modules that only fire when something is actually
+  *actionable*:
+  - `polybar/psi.sh` — hidden by default. Reads `/proc/pressure/{io,memory,cpu}`
+    (Linux PSI: tasks actually being stalled). Fires red on `io full avg60 >= 10`,
+    `memory full avg60 >= 5`, or `cpu some avg60 >= 30`. Priority order IO → MEM →
+    CPU, showing only the worst. **This is the signal that means "your machine is
+    grinding, look at it" — much sharper than aggregate CPU%.**
+  - `polybar/load.sh` — `load5 / nproc` ratio. Foreground <0.7, yellow 0.7–1.0,
+    red ≥1.0. Independent of iowait, so it shows true CPU contention.
+  - `polybar/ram.sh` — working-set used %, computed as
+    `(MemTotal − MemAvailable) / MemTotal`. This excludes buff/cache (Linux
+    happily reclaims it), so it reflects what apps actually hold rather than
+    the misleading "80% used" the old `internal/memory` module always reported.
+    Foreground <70, yellow 70–85, red ≥85.
+  - `polybar/disk.sh` — `/` used %. Foreground <70, yellow 70–90, red ≥90.
+    Uses `/usr/bin/df` because `df` is aliased to `duf` in `.zshrc`.
+  - `polybar/temp.sh` — first available `x86_pkg_temp` / `coretemp` / `TCPU`
+    thermal zone. Foreground <75°C, yellow 75–85, red ≥85.
 - Net module uses `polybar/net.sh` — prefers wired link when an ethernet
   interface has an IPv4 address, falls back to wireless, else ` offline`.
   Shows `<icon> <ip>  󰇚 <down>  󰕒 <up>` with a 2s sample. Interface detection
@@ -71,9 +91,43 @@ once `ob login` has been run interactively.
 
 Tail the journal: `journalctl --user -u obsidian-sync.service -f`.
 
+## Audio & Voice
+
+Full notes live in `./audio/` — this is just the map.
+
+- **Input (dictation):** USB condenser mic (MUSIC-BOOST MB-306) → **openwhispr**
+  (Groq Whisper backend) for speech-to-text. Gain tuning, port/dock quirks, and
+  the mute-button gotcha are documented in `audio/README.md`. Mic gain is **not**
+  persisted across reboot — re-apply by hand if dictation starts missing words.
+- **Output (spoken answer summaries):** Claude Code **speaks a one-sentence
+  summary after every answer**, using a **local, offline Piper TTS model** (CPU
+  only, no GPU, no API key). Set up 2026-05-24; switched from Inworld cloud TTS
+  to local Piper the same day. Full design in
+  `audio/claude-code-voice-summary.md`. In short:
+  - Claude ends substantive answers with a `🗣️ <≤16-word summary>` line
+    (instructed in `~/.claude/CLAUDE.md`). Two hooks
+    (`audio/speak-summary-baseline.sh` on `UserPromptSubmit`,
+    `audio/speak-summary.sh` on `Stop`) detect the new 🗣️ line and speak it via
+    `~/tts/bin/python -m piper`, played detached with `ffplay`. Fails silent
+    (always exits 0) so it can never block a session.
+  - **Piper engine** lives in venv `~/tts/`; voice files (`<name>.onnx`, ~60 MB)
+    in `~/tts-voices/`. ~7× faster than real time on this i7-1355U.
+  - **Per-project voices:** each git repo gets its own deterministic voice (so you
+    can tell by ear which project is talking); non-repo dirs use the favorite
+    `en_GB-alba-medium`. Override with `SPEAK_VOICE=<name>` or a
+    `<project>/.claude/speak-voice` file. Pool + default are edited at the top of
+    `speak-summary.sh`.
+  - **Toggle:** `echo off > ~/.claude/speak-summary` (global), per-project file,
+    or `SPEAK_SUMMARY=off claude` (session).
+- **Not symlinked:** like the tmux-agent-indicator hooks, the two
+  `speak-summary*.sh` scripts are **real files** in `~/.claude/hooks/` (vendored
+  here as reference copies), and the venv/voices in `~/tts/` + `~/tts-voices/` are
+  not in the repo. See `audio/claude-code-voice-summary.md` → "Reproduce on a new
+  machine" for the rebuild steps.
+
 ## Layout
 
-- **i3 config:** `./i3/config` — **symlinked** to `~/.config/i3/config`. `./i3/lock.sh` is **symlinked** to `~/.config/i3/lock.sh`. X11 idle blanking/DPMS is disabled while unlocked; `./i3/lock.sh` temporarily enables DPMS while locked so the display can power off only behind the lock screen. Lid-close behavior is handled entirely by logind via `./logind/lid.conf`, **copied** (not symlinked) to `/etc/systemd/logind.conf.d/lid.conf`. Symlink doesn't work here: SELinux confines `systemd-logind` to `systemd_logind_t`, which can't traverse `user_home_dir_t` (your `0700` home dir) to follow a symlink into the repo. Copy gets the correct `systemd_conf_t` context automatically. Re-deploy after editing the repo file with the `logind` row in the Deploy table. Per `logind.conf(5)`, when more than one display is connected (`/sys/class/drm/*/status`) logind uses `HandleLidSwitchDocked=` regardless of ACPI dock state — so the USB-C/TB "not classified docked" issue is moot as long as external monitors are attached. Drop-in sets `HandleLidSwitchDocked=lock`: docked → screen locks, no suspend; undocked → default `HandleLidSwitch=suspend` fires, `xss-lock` locks before the suspend. **Do not re-introduce a `block:handle-lid-switch` inhibitor** — that swallows lid events entirely (no suspend, no lock) and was the cause of the 2026-05 dead-battery incident.
+- **i3 config:** `./i3/config` — **symlinked** to `~/.config/i3/config`. `./i3/lock.sh` is **symlinked** to `~/.config/i3/lock.sh`. lock.sh deliberately does **not** touch DPMS — earlier versions scheduled `xset dpms force standby` 30s after locking, but that fed an infinite loop: forcing DPMS-standby fires the XSS screen-saver-activate callback, which xss-lock interprets as a fresh lock trigger and re-runs lock.sh. The `pgrep -x i3lock` re-entry guard isn't enough because i3lock can briefly exit between the cycles. Screen stays on while locked; press any key to wake the i3lock UI if it sleeps via the monitor's own power-save. Lid-close behavior is handled entirely by logind via `./logind/lid.conf`, **copied** (not symlinked) to `/etc/systemd/logind.conf.d/lid.conf`. Symlink doesn't work here: SELinux confines `systemd-logind` to `systemd_logind_t`, which can't traverse `user_home_dir_t` (your `0700` home dir) to follow a symlink into the repo. Copy gets the correct `systemd_conf_t` context automatically. Re-deploy after editing the repo file with the `logind` row in the Deploy table. Per `logind.conf(5)`, when more than one display is connected (`/sys/class/drm/*/status`) logind uses `HandleLidSwitchDocked=` regardless of ACPI dock state — so the USB-C/TB "not classified docked" issue is moot as long as external monitors are attached. Drop-in sets `HandleLidSwitchDocked=lock`: docked → screen locks, no suspend; undocked → default `HandleLidSwitch=suspend` fires, `xss-lock` locks before the suspend. **Do not re-introduce a `block:handle-lid-switch` inhibitor** — that swallows lid events entirely (no suspend, no lock) and was the cause of the 2026-05 dead-battery incident.
 - **Polybar:** `./polybar/config.ini` — **symlinked** to `~/.config/polybar/config.ini`
   (still needs polybar restart after edit, see Deploy workflow)
 - **Rofi:** `./rofi/` — **symlinked** (`config.rasi` + `gruvbox-dark.rasi` both link
@@ -146,6 +200,11 @@ ln -sf ~/gits/dot_files/i3/lock.sh            ~/.config/i3/lock.sh
 ln -sf ~/gits/dot_files/ghostty/config        ~/.config/ghostty/config
 ln -sf ~/gits/dot_files/polybar/config.ini    ~/.config/polybar/config.ini
 ln -sf ~/gits/dot_files/polybar/net.sh        ~/.config/polybar/net.sh
+ln -sf ~/gits/dot_files/polybar/psi.sh        ~/.config/polybar/psi.sh
+ln -sf ~/gits/dot_files/polybar/load.sh       ~/.config/polybar/load.sh
+ln -sf ~/gits/dot_files/polybar/ram.sh        ~/.config/polybar/ram.sh
+ln -sf ~/gits/dot_files/polybar/disk.sh       ~/.config/polybar/disk.sh
+ln -sf ~/gits/dot_files/polybar/temp.sh       ~/.config/polybar/temp.sh
 ln -sf ~/gits/dot_files/rofi/config.rasi      ~/.config/rofi/config.rasi
 ln -sf ~/gits/dot_files/rofi/gruvbox-dark.rasi ~/.config/rofi/gruvbox-dark.rasi
 
