@@ -1,0 +1,113 @@
+# Gruvbox Dark Hard, minimal two-line prompt.
+# Line 1: [hostname-if-ssh] directory  git_branch git_status  [venv] [jobs] [langs-if-project]  duration
+# Line 2: ❯ (yellow when ok, red on previous failure)
+#
+# Polybar already shows system stats and tmux shows session info, so the prompt
+# only carries info that's per-shell / per-directory:
+#   - hostname only when SSH'd (so you know you're not on the laptop)
+#   - python module only when a virtualenv is active (no version spam in ~)
+#   - jobs count when background jobs exist
+#   - java/rust/golang versions still fire only inside those project trees
+
+add_newline = false
+command_timeout = 800
+
+format = """
+$hostname\
+$directory\
+$git_branch\
+$git_status\
+$python\
+$jobs\
+$java\
+$rust\
+$golang\
+$cmd_duration\
+$line_break\
+$character"""
+
+[character]
+success_symbol = "[❯](bold #fabd2f)"
+error_symbol   = "[❯](bold #fb4934)"
+vimcmd_symbol  = "[❮](bold #b8bb26)"
+
+[directory]
+style = "bold #83a598"
+truncation_length = 4
+truncation_symbol = "…/"
+truncate_to_repo = true
+read_only = " "
+read_only_style = "#fb4934"
+
+[git_branch]
+symbol = " "
+style = "#fabd2f"
+format = "[$symbol$branch]($style) "
+
+[git_status]
+style = "#fe8019"
+format = "[$all_status$ahead_behind]($style) "
+conflicted = "= "
+ahead = "⇡${count} "
+behind = "⇣${count} "
+diverged = "⇕⇡${ahead_count}⇣${behind_count} "
+untracked = "?${count} "
+stashed = "$ "
+modified = "!${count} "
+staged = "+${count} "
+renamed = "» "
+deleted = "✘${count} "
+
+[cmd_duration]
+min_time = 1500
+style = "#928374"
+format = "[took $duration]($style) "
+
+[hostname]
+ssh_only = true
+format = "[$hostname]($style) "
+style = "bold #fb4934"
+
+[jobs]
+symbol = "✦"
+style = "#fabd2f"
+number_threshold = 1
+symbol_threshold = 1
+format = "[$symbol$number]($style) "
+
+# Only activate inside an active virtualenv — no version spam in ~ from stray .py files
+[python]
+symbol = " "
+style = "#fabd2f"
+format = '[${symbol}${virtualenv}]($style) '
+detect_extensions = []
+detect_files = []
+detect_folders = []
+
+[nodejs]
+disabled = true
+
+[java]
+symbol = " "
+style = "#fb4934"
+format = "[$symbol($version )]($style)"
+
+[rust]
+symbol = " "
+style = "#fe8019"
+format = "[$symbol($version )]($style)"
+
+[golang]
+symbol = " "
+style = "#83a598"
+format = "[$symbol($version )]($style)"
+
+# Modules off by default — turn on if you want them
+[package]
+disabled = true
+[aws]
+disabled = true
+[gcloud]
+disabled = true
+[kubernetes]
+disabled = true
