@@ -38,13 +38,40 @@ last line of every answer (`🗣️ …`), and two cooperating hooks turn it int
    `setsid` subshell runs `python -m piper -m <voice>.onnx -f <tmp>.wav -- "<text>"`
    and plays the WAV with `ffplay`, so the prompt is never blocked by the ~3–5 s
    CPU synthesis. Every error path exits 0 → can never block or break a session.
+5. **Playback is serialized across sessions** (see below) so simultaneous
+   finishers take turns instead of overlapping, and the **tmux window of the
+   currently-speaking answer is marked** so you can see which one is talking.
 
 ### TTS engine — local Piper
 
 - Engine: [`piper-tts`](https://pypi.org/project/piper-tts/) (OHF-Voice
   piper1-gpl), CPU-only ONNX VITS. ~7× faster than real-time on the i7-1355U.
 - Installed in a dedicated venv: `~/tts/` (`~/tts/bin/python -m piper …`).
-  Recreate with `uv venv -p 3.13 ~/tts && uv pip install --python ~/tts/bin/python piper-tts`.
+  Recreate with:
+  ```sh
+  uv python install 3.14                                  # uv-managed standalone build
+  uv venv ~/tts --managed-python --python 3.14
+  uv pip install --python ~/tts/bin/python piper-tts
+  ```
+- **Why `--managed-python` and not the system Python (set 2026-06-08).** A plain
+  `uv venv` links the venv to `/usr/bin/python3.XX`, which a Fedora **major**
+  upgrade *deletes* — the 42→44 bump took system Python 3.13→3.14 and removed
+  `/usr/bin/python3.13`, leaving `~/tts/bin/python` a dangling symlink. The Stop
+  hook then hits its `fail: piper venv python not found` guard and the summaries
+  go **silent with no error** (the hook always exits 0). `--managed-python` links
+  the venv to a uv standalone build under
+  `~/.local/share/uv/python/cpython-3.14…/` instead, which lives in `$HOME` and
+  `dnf` never touches — so the venv survives OS upgrades. Confirm the decoupling
+  in `~/tts/pyvenv.cfg`: `home =` must point under `~/.local/share/uv/python/`,
+  **not** `/usr/bin`.
+  - Tradeoff: the managed Python is ~30 MB and uv (not dnf) owns its updates —
+    fine for an offline CPU-only tool. uv 0.8.15's catalog only ships
+    `3.14.0rc2`, so that's what gets linked; functionally irrelevant for Piper.
+    To move to a newer 3.14.x later: `uv self update && uv python install 3.14`
+    then rebuild the venv with the block above.
+  - If it ever does break (e.g. you rebuilt with plain `uv venv`), the repair is
+    the same three commands above; voices in `~/tts-voices/` are untouched, so no
+    re-download.
 - Voice files (`<name>.onnx` + `<name>.onnx.json`, ~60 MB each) live in
   `~/tts-voices/`. Download more with
   `~/tts/bin/python -m piper.download_voices <name>` (browse names at the
@@ -67,6 +94,36 @@ project is talking. Resolution precedence (first match wins):
 gender + US/GB accents for easy differentiation; edit both at the top of
 `speak-summary.sh`. If a resolved voice file is missing it falls back to
 `DEFAULT_VOICE`. Any voice you reference must exist in `~/tts-voices/`.
+
+### Cross-session serialization + tmux attention (added 2026-05-29)
+
+Several agents in different sessions can hit `Stop` in the same instant; before
+this, each fired its own `ffplay` immediately and the voices overlapped into
+mush. The detached block now coordinates across **all** sessions:
+
+- **Serialize.** Synthesis still runs unsynchronized (parallel CPU is fine), but
+  playback is wrapped in a global `flock` on `~/.claude/speak-summary.lock`, so
+  exactly **one** summary is audible at a time. Simultaneous finishers queue and
+  play in turn — and because each project has its own voice, that sounds like
+  people taking turns rather than noise. Waiting costs the session nothing (the
+  block is already detached).
+- **Staleness cap.** A burst of finishers shouldn't become a 30-second monologue
+  about answers that are already old. Each request is stamped with an epoch when
+  the hook fires; if it has sat in the queue longer than `MAX_WAIT` (default 25 s,
+  override `SPEAK_MAX_WAIT`) by the time it gets the lock, it is **dropped**
+  unspoken. Self-limiting pileup.
+- **tmux marker.** While a summary plays, its tmux window name is prepended with
+  `🔊` (`3:dot_files` → `3:🔊 dot_files`) and a one-shot status-line banner
+  `🔊 <project>: <line>` is flashed. Restored on finish. Because playback is
+  serialized, the lit window is a clean **1:1** signal for the voice you're
+  hearing right now. Uses `$TMUX_PANE` (inherited from the shell that launched
+  Claude); no-op outside tmux. `automatic-rename` is snapshotted and toggled off
+  during the marker so tmux doesn't clobber it, then restored. This is
+  **orthogonal** to `tmux-agent-indicator`, which drives window *colors* — names
+  and colors don't collide, and the 🔊 complements its "done" flip.
+- **`SPEAK_FOCUS=on`** (off by default) additionally `select-window`s to the
+  speaking window — stronger "show me which one," but it hijacks your cursor, so
+  it's opt-in.
 
 ### Why the two-hook / uuid / poll dance
 
@@ -129,6 +186,13 @@ echo off > <project>/.claude/speak-summary    # off for one project (overrides g
 SPEAK_SUMMARY=off claude                       # off for one session
 ```
 
+Playback-coordination knobs (see "Cross-session serialization" above):
+
+```sh
+SPEAK_MAX_WAIT=25 claude     # drop summaries queued behind others longer than N s (default 25)
+SPEAK_FOCUS=on claude        # also jump tmux focus to the speaking window (default off)
+```
+
 ## Change / pin voices
 
 - Default + pool: edit `DEFAULT_VOICE` and `VOICE_POOL` at the top of
@@ -140,9 +204,13 @@ SPEAK_SUMMARY=off claude                       # off for one session
 
 ## Reproduce on a new machine
 
-1. Create the Piper venv and install the engine:
+1. Create the Piper venv and install the engine (use `--managed-python` so the
+   venv links to a uv standalone build in `$HOME`, not `/usr/bin` — see
+   "Why `--managed-python`" above; a system-Python venv dies on the next OS
+   major upgrade):
    ```sh
-   uv venv -p 3.13 ~/tts
+   uv python install 3.14
+   uv venv ~/tts --managed-python --python 3.14
    uv pip install --python ~/tts/bin/python piper-tts
    ```
 2. Download the voices you want into `~/tts-voices/`:

@@ -110,6 +110,12 @@ Full notes live in `./audio/` — this is just the map.
     `audio/speak-summary.sh` on `Stop`) detect the new 🗣️ line and speak it via
     `~/tts/bin/python -m piper`, played detached with `ffplay`. Fails silent
     (always exits 0) so it can never block a session.
+  - **No-overlap (added 2026-05-29):** playback is serialized across all
+    sessions via a global `flock` so simultaneous finishers take turns instead
+    of speaking over each other (stale ones queued >`SPEAK_MAX_WAIT`=25s are
+    dropped), and the **tmux window of the talking answer is marked** (`🔊 ` name
+    prefix + status banner) so you can see which one it is. `SPEAK_FOCUS=on`
+    also jumps focus to it. Full design in `audio/claude-code-voice-summary.md`.
   - **Piper engine** lives in venv `~/tts/`; voice files (`<name>.onnx`, ~60 MB)
     in `~/tts-voices/`. ~7× faster than real time on this i7-1355U.
   - **Per-project voices:** each git repo gets its own deterministic voice (so you

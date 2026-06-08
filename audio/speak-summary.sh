@@ -141,14 +141,68 @@ fi
 # mark this message as spoken so it is never repeated
 printf '%s' "$uuid" > "$STATE_FILE" 2>/dev/null
 
+# --- cross-session playback coordination ------------------------------------
+# Several agents (separate sessions) can hit Stop at the same instant; without
+# coordination their ffplay processes overlap into mush. We serialize playback
+# through a single global flock so exactly ONE summary is audible at a time —
+# they queue and play in turn (the per-project voices make that sound like
+# people taking turns). To stop a burst becoming a monologue, a summary that
+# has waited longer than MAX_WAIT in the queue is dropped instead of played.
+#
+# While a summary plays we also mark its tmux window (prepend 🔊 to the name)
+# and flash a status-line banner, so you can see WHICH answer is talking right
+# now. Because playback is serialized, the lit window is a clean 1:1 signal for
+# the current voice. Set SPEAK_FOCUS=on to also jump focus to that window.
+LOCK_FILE="$HOME/.claude/speak-summary.lock"
+MAX_WAIT="${SPEAK_MAX_WAIT:-25}"          # drop summaries queued longer than this (s)
+START_EPOCH="$(date +%s)"
+FOCUS="off"; case "${SPEAK_FOCUS:-}" in on|1|true) FOCUS="on";; esac
+TPANE=""; [ -n "${TMUX:-}" ] && TPANE="${TMUX_PANE:-}"
+PROJECT="$(basename "$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$cwd")")"
+
 # --- synthesize + play, fully detached so it never blocks the prompt --------
+# Synthesis happens BEFORE the lock (parallel across sessions is fine); only
+# ffplay + the tmux marker are serialized, so playback starts the instant the
+# lock frees with no synth delay.
 log "speaking (uuid=${uuid:0:8}, voice=$VOICE): $line"
 ( setsid bash -c '
-    py="$1"; vp="$2"; txt="$3";
-    tmp="$(mktemp --suffix=.wav)";
-    "$py" -m piper -m "$vp" -f "$tmp" -- "$txt" >/dev/null 2>&1 \
-      && ffplay -nodisp -autoexit -loglevel quiet "$tmp" >/dev/null 2>&1;
-    rm -f "$tmp";
-  ' _ "$VENV_PY" "$voice_path" "$line" >/dev/null 2>&1 & )
+    py="$1"; vp="$2"; txt="$3"; lock="$4"; maxw="$5"; t0="$6";
+    pane="$7"; proj="$8"; focus="$9";
 
-done_exit "ok: piper voice=$VOICE (detached)"
+    tmp="$(mktemp --suffix=.wav)";
+    "$py" -m piper -m "$vp" -f "$tmp" -- "$txt" >/dev/null 2>&1 || { rm -f "$tmp"; exit 0; }
+
+    # serialize: wait our turn behind any other speaking session
+    exec 9>"$lock";
+    flock 9;
+
+    # staleness: if we waited too long in the queue, skip (its answer is old)
+    now="$(date +%s)";
+    [ $((now - t0)) -gt "$maxw" ] && { rm -f "$tmp"; exit 0; }
+
+    # tmux attention: light up the window that is about to speak
+    win=""; oldname=""; oldauto="on";
+    if [ -n "$pane" ] && command -v tmux >/dev/null 2>&1; then
+      win="$(tmux display-message -p -t "$pane" "#{window_id}" 2>/dev/null)";
+      if [ -n "$win" ]; then
+        oldname="$(tmux display-message -p -t "$win" "#{window_name}" 2>/dev/null)";
+        oldauto="$(tmux show-options -wv -t "$win" automatic-rename 2>/dev/null)"; [ -n "$oldauto" ] || oldauto=on;
+        tmux set-window-option -t "$win" automatic-rename off 2>/dev/null;
+        tmux rename-window -t "$win" "🔊 $oldname" 2>/dev/null;
+        tmux display-message "🔊 $proj: $txt" 2>/dev/null;
+        [ "$focus" = "on" ] && tmux select-window -t "$win" 2>/dev/null;
+      fi
+    fi
+
+    ffplay -nodisp -autoexit -loglevel quiet "$tmp" >/dev/null 2>&1;
+
+    # restore the window name + automatic-rename state
+    if [ -n "$win" ]; then
+      tmux rename-window -t "$win" "$oldname" 2>/dev/null;
+      tmux set-window-option -t "$win" automatic-rename "$oldauto" 2>/dev/null;
+    fi
+    rm -f "$tmp";
+  ' _ "$VENV_PY" "$voice_path" "$line" "$LOCK_FILE" "$MAX_WAIT" "$START_EPOCH" \
+       "$TPANE" "$PROJECT" "$FOCUS" >/dev/null 2>&1 & )
+
+done_exit "ok: piper voice=$VOICE (detached, serialized)"
