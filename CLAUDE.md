@@ -196,6 +196,20 @@ cd ~/gits/dot_files
 # Create parent dirs that might not exist yet
 mkdir -p ~/.config/{nvim,polybar,rofi,ghostty,i3}
 
+# Lock-screen dependencies (i3/lock.sh)
+#   maim + ImageMagick    -> the blurred/dimmed screenshot pipeline
+#   i3lock-color (NOT i3lock) -> the themed clock+ring lock screen
+# lock.sh is variant-aware: if only vanilla `i3lock` is present it still
+# locks (minimal flags, no clock/ring), but the full gruvbox theme needs the
+# i3lock-color FORK. The fork is NOT in Fedora's main repos — install from a
+# COPR or build from source. A plain `dnf install i3lock` gives you vanilla
+# i3lock and the degraded lock (this is exactly what the F42->F44 upgrade did).
+sudo dnf install -y maim ImageMagick
+# Themed lock (pick one):
+#   sudo dnf copr enable <user>/i3lock-color && sudo dnf install i3lock-color
+#   -- or build from https://github.com/Raymo111/i3lock-color (see its README
+#      for the -devel build deps). Verify with: i3lock --help | grep -- --clock
+
 # Symlink everything
 ln -sf ~/gits/dot_files/.tmux.conf            ~/.tmux.conf
 ln -sf ~/gits/dot_files/.zshrc                ~/.zshrc
