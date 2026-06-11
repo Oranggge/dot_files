@@ -1,36 +1,53 @@
 #!/usr/bin/env bash
 # speak-summary.sh — Stop hook
 # Extracts the "🗣️ <summary>" line from Claude's last message and speaks it
-# via a LOCAL Piper TTS model (CPU, offline). Fails silent (always exits 0) so
-# it can never block or break the session.
+# via a LOCAL TTS engine (CPU, offline). Fails silent (always exits 0) so it
+# can never block or break the session.
 #
-# Per-project voices: each git project gets its own deterministic voice (so you
-# can tell by ear which project is talking); non-repo dirs use DEFAULT_VOICE.
-# Override per project with <cwd>/.claude/speak-voice (a voice name) or per
-# shell with SPEAK_VOICE=<name>. Synthesis + playback run detached.
+# Engines (since 2026-06-11, dispatched per summary by script detection):
+#   English  → Kokoro-82M  (~/tts-kokoro venv + tts-kokoro.py wrapper)
+#   Cyrillic → Silero v5   (~/tts-silero venv + tts-silero.py wrapper)
+#   fallback → Piper       (~/tts venv) if the Kokoro venv/model is missing
 #
-# Voices live in $VOICES_DIR as <name>.onnx (+ .onnx.json), downloaded with:
-#   ~/tts/bin/python -m piper.download_voices <name>
+# Per-project voices: each git project gets its own deterministic voice in
+# EACH language (so you can tell by ear which project is talking); non-repo
+# dirs use the defaults. Override per project with <cwd>/.claude/speak-voice
+# (English) / <cwd>/.claude/speak-voice-ru (Russian), or per shell with
+# SPEAK_VOICE= / SPEAK_VOICE_RU=. Voice names imply their engine:
+# af_*/am_*/bf_*/bm_* = Kokoro, aidar|baya|kseniya|eugene|xenia = Silero,
+# anything else (en_GB-…) = Piper — old Piper pins keep working.
+# Synthesis + playback run detached.
 # Debug: tail -f ~/.claude/speak-summary.log
 
 set -uo pipefail
 
-VENV_PY="$HOME/tts/bin/python"          # piper-tts installed in this venv
-VOICES_DIR="$HOME/tts-voices"           # where <voice>.onnx files live
-DEFAULT_VOICE="en_GB-alba-medium"       # the favorite; used outside git repos
+HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PIPER_PY="$HOME/tts/bin/python"           # piper-tts venv (legacy fallback)
+KOKORO_PY="$HOME/tts-kokoro/bin/python"   # kokoro-onnx venv (English)
+SILERO_PY="$HOME/tts-silero/bin/python"   # silero v5 venv (Russian)
+VOICES_DIR="$HOME/tts-voices"             # piper <voice>.onnx files
+KOKORO_MODEL="$HOME/tts-models/kokoro/kokoro-v1.0.onnx"
+SILERO_MODEL="$HOME/tts-models/silero/v5_ru.pt"
 
-# Pool used to auto-assign a distinct voice per git project (mix of
-# gender + US/GB accent so they're easy to tell apart by ear).
+DEFAULT_VOICE="bf_emma"                   # English default (GB female, Kokoro)
+PIPER_FALLBACK_VOICE="en_GB-alba-medium"  # used only if Kokoro is unavailable
+
+# Pool used to auto-assign a distinct ENGLISH voice per git project (mix of
+# gender + US/GB accent so they're easy to tell apart by ear). Kokoro names:
+# a=US b=GB, f=female m=male.
 VOICE_POOL=(
-  en_GB-alba-medium
-  en_GB-northern_english_male-medium
-  en_US-amy-medium
-  en_US-ryan-high
-  en_GB-cori-high
-  en_US-joe-medium
-  en_US-kristin-medium
-  en_US-hfc_male-medium
+  bf_emma
+  am_michael
+  af_heart
+  bm_george
+  af_bella
+  am_puck
+  bf_isabella
+  am_fenrir
 )
+
+DEFAULT_VOICE_RU="xenia"                  # Russian default (Silero v5)
+VOICE_POOL_RU=( xenia aidar baya eugene kseniya )
 
 LOG_FILE="$HOME/.claude/speak-summary.log"
 STATE_DIR="$HOME/.claude/speak-summary-state"
@@ -109,34 +126,78 @@ if [ -z "$uuid" ] || [ -z "$line" ]; then
 fi
 log "match uuid=${uuid:0:8} after ${polls} polls"
 
-# --- pick the voice for this project ----------------------------------------
-#   1. env var   SPEAK_VOICE=<name>
-#   2. project   <cwd>/.claude/speak-voice   (a voice name)
-#   3. auto      git repo  → deterministic pick from VOICE_POOL by repo path
-#                non-repo  → DEFAULT_VOICE
-resolve_voice() {
-  if [ -n "${SPEAK_VOICE:-}" ]; then printf '%s' "$SPEAK_VOICE"; return; fi
-  if [ -r "$cwd/.claude/speak-voice" ]; then
-    tr -d '[:space:]' < "$cwd/.claude/speak-voice"; return
-  fi
-  local root
+# --- pick the engine + voice for this summary --------------------------------
+# Language: any Cyrillic in the line → Russian (Silero), else English (Kokoro).
+# Voice precedence per language:
+#   1. env var   SPEAK_VOICE= / SPEAK_VOICE_RU=
+#   2. project   <cwd>/.claude/speak-voice / speak-voice-ru
+#   3. auto      git repo  → deterministic pick from the language's pool
+#                non-repo  → the language's default
+# The voice NAME implies the engine, so an old Piper pin (en_GB-…) still
+# routes to Piper.
+engine_for_voice() {
+  case "$1" in
+    aidar|baya|kseniya|eugene|xenia) echo silero;;
+    af_*|am_*|bf_*|bm_*)             echo kokoro;;
+    *)                               echo piper;;
+  esac
+}
+
+pool_pick() {  # $1.. = pool; deterministic per git repo, else first entry
+  local pool=("$@") root n idx
   root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)"
   if [ -n "$root" ]; then
-    local n idx
     n="$(printf '%s' "$root" | cksum | cut -d' ' -f1)"
-    idx=$(( n % ${#VOICE_POOL[@]} ))
-    printf '%s' "${VOICE_POOL[$idx]}"; return
+    idx=$(( n % ${#pool[@]} ))
+    printf '%s' "${pool[$idx]}"
+  else
+    printf '%s' "${pool[0]}"
   fi
-  printf '%s' "$DEFAULT_VOICE"
 }
-VOICE="$(resolve_voice)"
-voice_path="$VOICES_DIR/$VOICE.onnx"
-if [ ! -f "$voice_path" ]; then
-  log "warn: voice '$VOICE' not found, falling back to $DEFAULT_VOICE"
-  VOICE="$DEFAULT_VOICE"; voice_path="$VOICES_DIR/$VOICE.onnx"
+
+if printf '%s' "$line" | LC_ALL=C.UTF-8 grep -qP '\p{Cyrillic}' 2>/dev/null; then
+  LANG_TAG=ru
+  if   [ -n "${SPEAK_VOICE_RU:-}" ];           then VOICE="$SPEAK_VOICE_RU"
+  elif [ -r "$cwd/.claude/speak-voice-ru" ];   then VOICE="$(tr -d '[:space:]' < "$cwd/.claude/speak-voice-ru")"
+  else
+    root_check="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)"
+    if [ -n "$root_check" ]; then VOICE="$(pool_pick "${VOICE_POOL_RU[@]}")"
+    else VOICE="$DEFAULT_VOICE_RU"; fi
+  fi
+else
+  LANG_TAG=en
+  if   [ -n "${SPEAK_VOICE:-}" ];              then VOICE="$SPEAK_VOICE"
+  elif [ -r "$cwd/.claude/speak-voice" ];      then VOICE="$(tr -d '[:space:]' < "$cwd/.claude/speak-voice")"
+  else
+    root_check="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)"
+    if [ -n "$root_check" ]; then VOICE="$(pool_pick "${VOICE_POOL[@]}")"
+    else VOICE="$DEFAULT_VOICE"; fi
+  fi
 fi
-[ -f "$voice_path" ] || done_exit "fail: no voice file ($voice_path)"
-[ -x "$VENV_PY" ]    || done_exit "fail: piper venv python not found ($VENV_PY)"
+ENGINE="$(engine_for_voice "$VOICE")"
+
+# --- verify the chosen engine is actually usable; degrade where possible -----
+PIPER_MODEL=""   # full .onnx path, only used by the piper branch
+case "$ENGINE" in
+  kokoro)
+    if [ ! -x "$KOKORO_PY" ] || [ ! -f "$KOKORO_MODEL" ]; then
+      log "warn: kokoro unavailable, falling back to piper $PIPER_FALLBACK_VOICE"
+      ENGINE=piper; VOICE="$PIPER_FALLBACK_VOICE"
+    fi;;
+  silero)
+    if [ ! -x "$SILERO_PY" ] || [ ! -f "$SILERO_MODEL" ]; then
+      done_exit "fail: silero unavailable for russian summary ($SILERO_PY / $SILERO_MODEL)"
+    fi;;
+esac
+if [ "$ENGINE" = "piper" ]; then
+  PIPER_MODEL="$VOICES_DIR/$VOICE.onnx"
+  if [ ! -f "$PIPER_MODEL" ]; then
+    log "warn: piper voice '$VOICE' not found, falling back to $PIPER_FALLBACK_VOICE"
+    VOICE="$PIPER_FALLBACK_VOICE"; PIPER_MODEL="$VOICES_DIR/$VOICE.onnx"
+  fi
+  [ -f "$PIPER_MODEL" ] || done_exit "fail: no piper voice file ($PIPER_MODEL)"
+  [ -x "$PIPER_PY" ]    || done_exit "fail: piper venv python not found ($PIPER_PY)"
+fi
 
 # mark this message as spoken so it is never repeated
 printf '%s' "$uuid" > "$STATE_FILE" 2>/dev/null
@@ -163,14 +224,23 @@ PROJECT="$(basename "$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || pr
 # --- synthesize + play, fully detached so it never blocks the prompt --------
 # Synthesis happens BEFORE the lock (parallel across sessions is fine); only
 # ffplay + the tmux marker are serialized, so playback starts the instant the
-# lock frees with no synth delay.
-log "speaking (uuid=${uuid:0:8}, voice=$VOICE): $line"
+# lock frees with no synth delay. Engine config reaches the detached subshell
+# via exported SPK_* vars (it inherits our environment).
+export SPK_HOOKS_DIR="$HOOKS_DIR" SPK_PIPER_PY="$PIPER_PY" \
+       SPK_KOKORO_PY="$KOKORO_PY" SPK_SILERO_PY="$SILERO_PY" \
+       SPK_PIPER_MODEL="$PIPER_MODEL"
+log "speaking (uuid=${uuid:0:8}, lang=$LANG_TAG, engine=$ENGINE, voice=$VOICE): $line"
 ( setsid bash -c '
-    py="$1"; vp="$2"; txt="$3"; lock="$4"; maxw="$5"; t0="$6";
+    eng="$1"; voice="$2"; txt="$3"; lock="$4"; maxw="$5"; t0="$6";
     pane="$7"; proj="$8"; focus="$9";
 
     tmp="$(mktemp --suffix=.wav)";
-    "$py" -m piper -m "$vp" -f "$tmp" -- "$txt" >/dev/null 2>&1 || { rm -f "$tmp"; exit 0; }
+    case "$eng" in
+      kokoro) "$SPK_KOKORO_PY" "$SPK_HOOKS_DIR/tts-kokoro.py" "$voice" "$tmp" "$txt" >/dev/null 2>&1;;
+      silero) "$SPK_SILERO_PY" "$SPK_HOOKS_DIR/tts-silero.py" "$voice" "$tmp" "$txt" >/dev/null 2>&1;;
+      *)      "$SPK_PIPER_PY" -m piper -m "$SPK_PIPER_MODEL" -f "$tmp" -- "$txt" >/dev/null 2>&1;;
+    esac
+    [ -s "$tmp" ] || { rm -f "$tmp"; exit 0; }
 
     # serialize: wait our turn behind any other speaking session
     exec 9>"$lock";
@@ -202,7 +272,7 @@ log "speaking (uuid=${uuid:0:8}, voice=$VOICE): $line"
       tmux set-window-option -t "$win" automatic-rename "$oldauto" 2>/dev/null;
     fi
     rm -f "$tmp";
-  ' _ "$VENV_PY" "$voice_path" "$line" "$LOCK_FILE" "$MAX_WAIT" "$START_EPOCH" \
+  ' _ "$ENGINE" "$VOICE" "$line" "$LOCK_FILE" "$MAX_WAIT" "$START_EPOCH" \
        "$TPANE" "$PROJECT" "$FOCUS" >/dev/null 2>&1 & )
 
-done_exit "ok: piper voice=$VOICE (detached, serialized)"
+done_exit "ok: engine=$ENGINE voice=$VOICE (detached, serialized)"

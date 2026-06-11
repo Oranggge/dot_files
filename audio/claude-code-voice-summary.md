@@ -1,12 +1,14 @@
-# Claude Code spoken answer summaries (local Piper TTS)
+# Claude Code spoken answer summaries (local TTS: Kokoro EN + Silero RU)
 
 Set up 2026-05-24. Makes Claude Code **speak a one-sentence summary of each
-answer** out loud, using a **local, offline Piper TTS model** (CPU only — no
-GPU, no cloud, no API key). Output-side companion to the mic notes in this
-folder's `README.md`.
+answer** out loud, using **local, offline TTS models** (CPU only — no GPU, no
+cloud, no API key). Output-side companion to the mic notes in this folder's
+`README.md`.
 
-Originally built on Inworld's cloud TTS; switched to local Piper on 2026-05-24
-(favorite voice `en_GB-alba-medium`). The old Inworld version is kept as
+History: built on Inworld cloud TTS → switched to local Piper 2026-05-24 →
+**upgraded 2026-06-11 to Kokoro-82M (English) + Silero v5 (Russian)** for
+clearly better naturalness and Russian support; Piper is kept only as the
+fallback engine if Kokoro is missing. The old Inworld version is kept as
 `~/.claude/hooks/speak-summary.sh.inworld.bak`.
 
 ## Why
@@ -34,20 +36,44 @@ last line of every answer (`🗣️ …`), and two cooperating hooks turn it int
 3. **Stop hook** — runs `speak-summary.sh` after each response. It reads the
    transcript and **polls up to ~3 s** for a 🗣️ line in an assistant message
    whose uuid differs from the baseline, then strips the marker.
-4. It picks a voice (see below), then **synthesizes + plays detached**: a
-   `setsid` subshell runs `python -m piper -m <voice>.onnx -f <tmp>.wav -- "<text>"`
-   and plays the WAV with `ffplay`, so the prompt is never blocked by the ~3–5 s
-   CPU synthesis. Every error path exits 0 → can never block or break a session.
+4. It detects the summary's language (any Cyrillic → Russian), picks an engine
+   + voice (see below), then **synthesizes + plays detached**: a `setsid`
+   subshell runs the engine's wrapper (`tts-kokoro.py` / `tts-silero.py`, or
+   `python -m piper` on the fallback path) and plays the WAV with `ffplay`, so
+   the prompt is never blocked by the ~3–5 s CPU synthesis. Every error path
+   exits 0 → can never block or break a session.
 5. **Playback is serialized across sessions** (see below) so simultaneous
    finishers take turns instead of overlapping, and the **tmux window of the
    currently-speaking answer is marked** so you can see which one is talking.
 
-### TTS engine — local Piper
+### TTS engines (since 2026-06-11)
 
-- Engine: [`piper-tts`](https://pypi.org/project/piper-tts/) (OHF-Voice
-  piper1-gpl), CPU-only ONNX VITS. ~7× faster than real-time on the i7-1355U.
-- Installed in a dedicated venv: `~/tts/` (`~/tts/bin/python -m piper …`).
-  Recreate with:
+Three engines, one per role; the hook dispatches per summary by detecting
+Cyrillic in the 🗣️ line (`\p{Cyrillic}`):
+
+| Role | Engine | Venv | Models | Speed (i7-1355U) |
+|---|---|---|---|---|
+| **English** | [Kokoro-82M](https://github.com/thewh1teagle/kokoro-onnx) via `kokoro-onnx` (ONNX, StyleTTS2-class) | `~/tts-kokoro/` | `~/tts-models/kokoro/` (~340 MB) | ~4 s per one-liner incl. model load |
+| **Russian** | [Silero v5](https://github.com/snakers4/silero-models) (torch CPU; auto stress/ударение + homographs) | `~/tts-silero/` | `~/tts-models/silero/v5_ru.pt` (~140 MB) | ~4–5 s per one-liner incl. torch load |
+| **Fallback** | [`piper-tts`](https://pypi.org/project/piper-tts/) (used only if Kokoro venv/model is missing) | `~/tts/` | `~/tts-voices/*.onnx` | ~3–5 s |
+
+Why this pair (researched 2026-06-11): Kokoro is the biggest naturalness jump
+over Piper that still runs ~2× real-time on CPU, but has **no Russian**.
+Silero v5 is the best local Russian — its automatic stress placement is exactly
+where Piper's `ru_RU` voices fail — but its English (v3) is dated. Single-engine
+alternatives lost: Supertonic 3 (en+ru, fast, but ≈Piper-level naturalness),
+Chatterbox Multilingual (great quality, RTF >1 on CPU — too slow), XTTS/F5-TTS
+(GPU-class). `edge-tts` (free Azure voices, needs network) would beat both but
+breaks the offline design; noted as an option, not wired in.
+
+- Engines are invoked through tiny wrappers next to the hook:
+  `~/.claude/hooks/tts-kokoro.py <voice> <out.wav> <text>` and
+  `~/.claude/hooks/tts-silero.py <speaker> <out.wav> <text>` (vendored in
+  `audio/`).
+- Silero v5_ru license is **CC BY-NC** (fine for this personal hook); Kokoro
+  model is Apache-2.0.
+- Venv recreate commands are in "Reproduce on a new machine" below. The
+  legacy Piper venv:
   ```sh
   uv python install 3.14                                  # uv-managed standalone build
   uv venv ~/tts --managed-python --python 3.14
@@ -78,22 +104,27 @@ last line of every answer (`🗣️ …`), and two cooperating hooks turn it int
   HuggingFace `rhasspy/piper-voices` repo).
 - License: Piper is GPL-3.0-or-later; voices are mostly permissive (per-voice).
 
-### Per-project voices
+### Per-project voices (per language)
 
-Each git project speaks in **its own voice** so you can tell by ear which
-project is talking. Resolution precedence (first match wins):
+Each git project speaks in **its own voice in each language** so you can tell
+by ear which project is talking. Resolution precedence (first match wins),
+applied to the language the detector picked:
 
-1. **env** `SPEAK_VOICE=<name>` — per shell/session.
-2. **project file** `<cwd>/.claude/speak-voice` — a single voice name. Pin a
-   project to a specific voice this way.
+1. **env** `SPEAK_VOICE=<name>` (English) / `SPEAK_VOICE_RU=<name>` (Russian).
+2. **project file** `<cwd>/.claude/speak-voice` / `<cwd>/.claude/speak-voice-ru`
+   — a single voice name. Pin a project this way.
 3. **auto** — if `cwd` is inside a **git repo**, a deterministic voice is chosen
-   from `VOICE_POOL` by `cksum` of the repo's toplevel path (same repo → same
-   voice every time). If **not** in a repo, `DEFAULT_VOICE` is used.
+   from that language's pool by `cksum` of the repo's toplevel path (same repo →
+   same voice every time). If **not** in a repo, the language default is used.
 
-`DEFAULT_VOICE="en_GB-alba-medium"` (the favorite). `VOICE_POOL` is a mix of
-gender + US/GB accents for easy differentiation; edit both at the top of
-`speak-summary.sh`. If a resolved voice file is missing it falls back to
-`DEFAULT_VOICE`. Any voice you reference must exist in `~/tts-voices/`.
+The voice **name implies the engine**: `af_*/am_*/bf_*/bm_*` → Kokoro
+(a=US/b=GB, f/m=gender), `aidar|baya|kseniya|eugene|xenia` → Silero, anything
+else (`en_GB-…`) → Piper — so an old Piper pin file keeps working unchanged.
+
+`DEFAULT_VOICE="bf_emma"` (Kokoro GB female; the top-rated Kokoro voice is
+`af_heart`, US female, if you prefer it). `DEFAULT_VOICE_RU="xenia"`.
+`VOICE_POOL` (8 Kokoro voices, mixed gender/accent) and `VOICE_POOL_RU`
+(all 5 Silero speakers) are edited at the top of `speak-summary.sh`.
 
 ### Cross-session serialization + tmux attention (added 2026-05-29)
 
@@ -144,8 +175,8 @@ Both hooks append to `~/.claude/speak-summary.log` (tags `[baseline]` and
 … [stop:2638ff16] FIRED
 … [stop:2638ff16] baseline prev_uuid=<uuidA>
 … [stop:2638ff16] match uuid=<uuidB> after 3 polls
-… [stop:2638ff16] speaking (uuid=<uuidB>, voice=en_GB-alba-medium): <the sentence>
-… [stop:2638ff16] ok: piper voice=en_GB-alba-medium (detached)
+… [stop:2638ff16] speaking (uuid=<uuidB>, lang=en, engine=kokoro, voice=bf_emma): <the sentence>
+… [stop:2638ff16] ok: engine=kokoro voice=bf_emma (detached, serialized)
 ```
 Skips log the reason + `prev_uuid`/`last_seen` so an off-by-one or missed flush is
 diagnosable. `tail -f ~/.claude/speak-summary.log` to watch live.
@@ -159,6 +190,8 @@ unlike `.zshrc` etc.), so they are vendored here as reference copies:
 |---|---|
 | `~/.claude/hooks/speak-summary.sh` (Stop) | `audio/speak-summary.sh` |
 | `~/.claude/hooks/speak-summary-baseline.sh` (UserPromptSubmit) | `audio/speak-summary-baseline.sh` |
+| `~/.claude/hooks/tts-kokoro.py` (English synth wrapper) | `audio/tts-kokoro.py` |
+| `~/.claude/hooks/tts-silero.py` (Russian synth wrapper) | `audio/tts-silero.py` |
 | `~/.claude/CLAUDE.md` (the 🗣️ instruction block) | quoted in that file |
 | `~/.claude/settings.json` → `hooks.Stop[]` + `hooks.UserPromptSubmit[]` | snippets below |
 
@@ -174,8 +207,8 @@ unlike `.zshrc` etc.), so they are vendored here as reference copies:
 
 ## No API key needed
 
-Piper runs entirely locally — there is nothing to authenticate and nothing
-secret to keep out of this repo. (The old Inworld key at
+All three engines run entirely locally — there is nothing to authenticate and
+nothing secret to keep out of this repo. (The old Inworld key at
 `~/.config/credentials/inworld_api_key` is no longer used by the active hook.)
 
 ## Enable / disable (precedence: env → project → global → default ON)
@@ -195,38 +228,58 @@ SPEAK_FOCUS=on claude        # also jump tmux focus to the speaking window (defa
 
 ## Change / pin voices
 
-- Default + pool: edit `DEFAULT_VOICE` and `VOICE_POOL` at the top of
+- Defaults + pools: edit `DEFAULT_VOICE`/`VOICE_POOL` (English, Kokoro) and
+  `DEFAULT_VOICE_RU`/`VOICE_POOL_RU` (Russian, Silero) at the top of
   `speak-summary.sh`.
-- Pin one project: `echo en_US-ryan-high > <project>/.claude/speak-voice`.
-- One session: `SPEAK_VOICE=en_GB-cori-high claude`.
-- Add a voice: `~/tts/bin/python -m piper.download_voices <name>` (lands in
-  `~/tts-voices/`), then reference it.
+- Pin one project: `echo af_heart > <project>/.claude/speak-voice` and/or
+  `echo baya > <project>/.claude/speak-voice-ru`.
+- One session: `SPEAK_VOICE=bm_george SPEAK_VOICE_RU=aidar claude`.
+- Kokoro voice list: see `VOICES.md` in the `hexgrad/Kokoro-82M` HF repo (all
+  ~28 English voices ship inside `voices-v1.0.bin`, nothing to download).
+  Silero v5_ru speakers: aidar, baya, kseniya, eugene, xenia.
+- Piper voices (fallback only): `~/tts/bin/python -m piper.download_voices
+  <name>` (lands in `~/tts-voices/`), then reference it by its `en_GB-…` name.
 
 ## Reproduce on a new machine
 
-1. Create the Piper venv and install the engine (use `--managed-python` so the
-   venv links to a uv standalone build in `$HOME`, not `/usr/bin` — see
-   "Why `--managed-python`" above; a system-Python venv dies on the next OS
-   major upgrade):
+1. Create the engine venvs (use `--managed-python` so the venvs link to a uv
+   standalone build in `$HOME`, not `/usr/bin` — see "Why `--managed-python`"
+   above; a system-Python venv dies on the next OS major upgrade). The torch
+   `--index-url …/cpu` matters: the default wheel drags in ~2.5 GB of CUDA.
    ```sh
+   uv python install 3.12
+   # English — Kokoro
+   uv venv ~/tts-kokoro --managed-python --python 3.12
+   uv pip install --python ~/tts-kokoro/bin/python kokoro-onnx soundfile
+   # Russian — Silero (torch CPU-only)
+   uv venv ~/tts-silero --managed-python --python 3.12
+   uv pip install --python ~/tts-silero/bin/python torch --index-url https://download.pytorch.org/whl/cpu
+   uv pip install --python ~/tts-silero/bin/python soundfile numpy scipy
+   # Fallback — Piper (optional but recommended)
    uv python install 3.14
    uv venv ~/tts --managed-python --python 3.14
    uv pip install --python ~/tts/bin/python piper-tts
    ```
-2. Download the voices you want into `~/tts-voices/`:
+2. Download the models:
    ```sh
+   mkdir -p ~/tts-models/kokoro ~/tts-models/silero
+   cd ~/tts-models/kokoro
+   curl -LO https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
+   curl -LO https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
+   curl -L -o ~/tts-models/silero/v5_ru.pt https://models.silero.ai/models/tts/ru/v5_ru.pt
+   # Piper fallback voice:
    mkdir -p ~/tts-voices && cd ~/tts-voices
-   for v in en_GB-alba-medium en_GB-northern_english_male-medium en_US-amy-medium \
-            en_US-ryan-high en_GB-cori-high en_US-joe-medium en_US-kristin-medium \
-            en_US-hfc_male-medium; do ~/tts/bin/python -m piper.download_voices "$v"; done
+   ~/tts/bin/python -m piper.download_voices en_GB-alba-medium
    ```
-3. Copy both scripts and mark executable:
+3. Copy the scripts and mark executable:
    ```sh
-   cp audio/speak-summary.sh audio/speak-summary-baseline.sh ~/.claude/hooks/
-   chmod +x ~/.claude/hooks/speak-summary*.sh
+   cp audio/speak-summary.sh audio/speak-summary-baseline.sh \
+      audio/tts-kokoro.py audio/tts-silero.py ~/.claude/hooks/
+   chmod +x ~/.claude/hooks/speak-summary*.sh ~/.claude/hooks/tts-*.py
    ```
 4. Add the `hooks.Stop[]` **and** `hooks.UserPromptSubmit[]` entries above to
    `~/.claude/settings.json`.
-5. Add the 🗣️ instruction to `~/.claude/CLAUDE.md`.
+5. Add the 🗣️ instruction (including the language rule: summary in the
+   conversation's language, Russian or English) to `~/.claude/CLAUDE.md`.
 6. Ensure `jq`, `ffmpeg`/`ffplay`, `git` are installed. **Restart** Claude (hooks
    load at session start).

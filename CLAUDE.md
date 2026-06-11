@@ -100,36 +100,44 @@ Full notes live in `./audio/` — this is just the map.
   the mute-button gotcha are documented in `audio/README.md`. Mic gain is **not**
   persisted across reboot — re-apply by hand if dictation starts missing words.
 - **Output (spoken answer summaries):** Claude Code **speaks a one-sentence
-  summary after every answer**, using a **local, offline Piper TTS model** (CPU
-  only, no GPU, no API key). Set up 2026-05-24; switched from Inworld cloud TTS
-  to local Piper the same day. Full design in
-  `audio/claude-code-voice-summary.md`. In short:
-  - Claude ends substantive answers with a `🗣️ <≤16-word summary>` line
-    (instructed in `~/.claude/CLAUDE.md`). Two hooks
+  summary after every answer**, using **local, offline TTS models** (CPU only,
+  no GPU, no API key). Set up 2026-05-24 (Inworld cloud → local Piper same
+  day); **upgraded 2026-06-11 to Kokoro-82M for English + Silero v5 for
+  Russian** (better naturalness; Russian gets correct ударение). Full design
+  in `audio/claude-code-voice-summary.md`. In short:
+  - Claude ends substantive answers with a `🗣️ <≤16-word summary>` line, **in
+    the conversation's language — Russian or English** (instructed in
+    `~/.claude/CLAUDE.md`). Two hooks
     (`audio/speak-summary-baseline.sh` on `UserPromptSubmit`,
-    `audio/speak-summary.sh` on `Stop`) detect the new 🗣️ line and speak it via
-    `~/tts/bin/python -m piper`, played detached with `ffplay`. Fails silent
-    (always exits 0) so it can never block a session.
+    `audio/speak-summary.sh` on `Stop`) detect the new 🗣️ line, route it by
+    script (Cyrillic → Silero, else Kokoro, Piper only as fallback) via the
+    `audio/tts-kokoro.py` / `audio/tts-silero.py` wrappers, played detached
+    with `ffplay`. Fails silent (always exits 0) so it can never block a
+    session.
   - **No-overlap (added 2026-05-29):** playback is serialized across all
     sessions via a global `flock` so simultaneous finishers take turns instead
     of speaking over each other (stale ones queued >`SPEAK_MAX_WAIT`=25s are
     dropped), and the **tmux window of the talking answer is marked** (`🔊 ` name
     prefix + status banner) so you can see which one it is. `SPEAK_FOCUS=on`
     also jumps focus to it. Full design in `audio/claude-code-voice-summary.md`.
-  - **Piper engine** lives in venv `~/tts/`; voice files (`<name>.onnx`, ~60 MB)
-    in `~/tts-voices/`. ~7× faster than real time on this i7-1355U.
-  - **Per-project voices:** each git repo gets its own deterministic voice (so you
-    can tell by ear which project is talking); non-repo dirs use the favorite
-    `en_GB-alba-medium`. Override with `SPEAK_VOICE=<name>` or a
-    `<project>/.claude/speak-voice` file. Pool + default are edited at the top of
-    `speak-summary.sh`.
+  - **Engines:** Kokoro in venv `~/tts-kokoro/` (model in `~/tts-models/kokoro/`,
+    ~340 MB), Silero in `~/tts-silero/` (CPU torch; model
+    `~/tts-models/silero/v5_ru.pt`, ~140 MB), legacy Piper fallback in `~/tts/`
+    + `~/tts-voices/`. A one-liner synthesizes in ~4–5 s either language.
+  - **Per-project voices (per language):** each git repo gets its own
+    deterministic voice in each language (so you can tell by ear which project
+    is talking); non-repo dirs use `bf_emma` (EN) / `xenia` (RU). Override with
+    `SPEAK_VOICE=` / `SPEAK_VOICE_RU=` or `<project>/.claude/speak-voice` /
+    `speak-voice-ru` files. Pools + defaults are edited at the top of
+    `speak-summary.sh`; voice names imply the engine (old Piper pins still work).
   - **Toggle:** `echo off > ~/.claude/speak-summary` (global), per-project file,
     or `SPEAK_SUMMARY=off claude` (session).
-- **Not symlinked:** like the tmux-agent-indicator hooks, the two
-  `speak-summary*.sh` scripts are **real files** in `~/.claude/hooks/` (vendored
-  here as reference copies), and the venv/voices in `~/tts/` + `~/tts-voices/` are
-  not in the repo. See `audio/claude-code-voice-summary.md` → "Reproduce on a new
-  machine" for the rebuild steps.
+- **Not symlinked:** like the tmux-agent-indicator hooks, the hook scripts
+  (`speak-summary*.sh`, `tts-kokoro.py`, `tts-silero.py`) are **real files** in
+  `~/.claude/hooks/` (vendored here as reference copies), and the venvs/models
+  in `~/tts*/` + `~/tts-models/` + `~/tts-voices/` are not in the repo. See
+  `audio/claude-code-voice-summary.md` → "Reproduce on a new machine" for the
+  rebuild steps.
 
 ## Layout
 
