@@ -95,6 +95,14 @@ close_tab  = ["prefix+ampersand", "prefix+shift+x"]
 new_workspace = ["prefix+c", "prefix+shift+n"]
 new_tab       = "prefix+t"
 
+# Same reasoning as prefix+c: the numbers should index the thing you actually
+# navigate. tmux's `prefix <n>` selects a WINDOW (= herdr tab), but here the
+# sidebar list you think in is spaces, so prefix+1..9 jumps to space N and tabs
+# get the shifted row. Both are indexed bindings: the "1..9" suffix is herdr
+# syntax, not a literal key.
+switch_workspace = "prefix+1..9"
+switch_tab       = "prefix+shift+1..9"
+
 # tmux: `bind-key -n C-h/j/k/l ... select-pane -L/D/U/R` (no prefix).
 # The bare ctrl chords are the real pane-navigation muscle memory; herdr's
 # default prefix+hjkl duplicated them. prefix+j / prefix+k have been handed to

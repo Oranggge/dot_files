@@ -154,13 +154,16 @@ index of panes where herdr detected an AI agent, each entry pointing back at a
 list re-sorts to blocked → done → working → idle, which makes `prefix+a` a
 triage queue rather than a directory walk.
 
-**Keys mirror `.tmux.conf`** so there is nothing to relearn, with two deliberate
-exceptions, both documented inline in `config.toml`:
+**Keys mirror `.tmux.conf`** so there is nothing to relearn, with three
+deliberate exceptions, all documented inline in `config.toml`. The theme of all
+three: **the cheap keys index spaces, not tabs**, because the space is the unit
+of work here (one repo / one project) and tabs are barely used.
 
 - `prefix+c` makes a new **space**, not a new tab (new tab moved to `prefix+t`).
-  The unit of work here is the repo/project, so the cheapest create key goes to
-  the thing created most. tmux's `prefix c` = new-window is the muscle memory
-  being broken.
+  tmux's `prefix c` = new-window is the muscle memory being broken.
+- `prefix+1..9` jumps to **space** N; tabs move to `prefix+shift+1..9`. In tmux
+  `prefix <n>` selects a window (= a herdr tab). Note `prefix+1..9` indexes the
+  sidebar *order*, which is exactly what `move-space.py` rearranges.
 - `prefix+shift+j` / `prefix+shift+k` move the focused space down/up, borrowed
   from qutebrowser's move-tab. In tmux the same chord is `resize-pane` — the one
   place the two tools disagree.
@@ -180,8 +183,11 @@ reason the script is 60 lines and not 5.
 
 **Validation.** `herdr server reload-config` returns
 `{"status": "applied", "diagnostics": []}` on success and `"status": "partial"`
-with a diagnostics array on a bad key (keeping the old keys). Trust the
-diagnostics — a silent `applied` really does mean the binding took.
+with a diagnostics array on a bad key. Trust the diagnostics — a silent
+`applied` really does mean the binding took. Beware the failure mode: an invalid
+key **disables that one binding** (`invalid keybinding: keys.switch_tab = "…";
+disabling binding`) rather than refusing the reload, so a typo costs you a key
+silently unless you read `diagnostics`.
 
 **Updates are deliberate.** `version_check` and `manifest_check` are both off;
 `herdr update` would `rename(2)` a new binary over `~/.local/bin/herdr` with TLS
