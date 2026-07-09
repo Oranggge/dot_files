@@ -139,6 +139,55 @@ Full notes live in `./audio/` — this is just the map.
   `audio/claude-code-voice-summary.md` → "Reproduce on a new machine" for the
   rebuild steps.
 
+## herdr (agent multiplexer)
+
+Installed 2026-07-09, v0.7.3, pinned by hand from the GitHub release (**not**
+the `curl | sh` installer). Config at `./herdr/config.toml` — **symlinked** to
+`~/.config/herdr/config.toml`. Its own header comments carry the full rationale
+for every setting; the notes below are only what the config can't say about
+itself.
+
+**Model.** A *space* (the CLI/socket API calls it a `workspace`) contains tabs,
+which contain panes. The sidebar's *agents* section is not a container — it's an
+index of panes where herdr detected an AI agent, each entry pointing back at a
+`pane_id`/`tab_id`/`workspace_id`. With `agent_panel_sort = "priority"` that
+list re-sorts to blocked → done → working → idle, which makes `prefix+a` a
+triage queue rather than a directory walk.
+
+**Keys mirror `.tmux.conf`** so there is nothing to relearn, with two deliberate
+exceptions, both documented inline in `config.toml`:
+
+- `prefix+c` makes a new **space**, not a new tab (new tab moved to `prefix+t`).
+  The unit of work here is the repo/project, so the cheapest create key goes to
+  the thing created most. tmux's `prefix c` = new-window is the muscle memory
+  being broken.
+- `prefix+shift+j` / `prefix+shift+k` move the focused space down/up, borrowed
+  from qutebrowser's move-tab. In tmux the same chord is `resize-pane` — the one
+  place the two tools disagree.
+
+**`herdr/move-space.py`** exists because herdr has no `move_workspace` key action
+and no `herdr workspace move` CLI subcommand: reordering is reachable *only* as
+the raw socket method `workspace.move`. A `[[keys.command]]` entry
+(`type = "shell"`) shells out to it. Referenced by absolute repo path from
+`config.toml`, same as `tmux/claude-spinner.sh`, so it needs no Bootstrap symlink.
+
+`workspace.move`'s `insert_index` is **0-based against the list as it currently
+is** — "put this space where the space now at `insert_index` sits". Because
+removing the space shifts everything after it left by one, a *downward* move
+needs `target + 1` while an upward move needs plain `target`. Passing `target`
+for a downward move is a **silent no-op, not an error**. This is the whole
+reason the script is 60 lines and not 5.
+
+**Validation.** `herdr server reload-config` returns
+`{"status": "applied", "diagnostics": []}` on success and `"status": "partial"`
+with a diagnostics array on a bad key (keeping the old keys). Trust the
+diagnostics — a silent `applied` really does mean the binding took.
+
+**Updates are deliberate.** `version_check` and `manifest_check` are both off;
+`herdr update` would `rename(2)` a new binary over `~/.local/bin/herdr` with TLS
+as its only integrity check, since the manifest ships no sha256 for unix assets.
+Re-download the pinned release and verify the hash by hand.
+
 ## Layout
 
 - **i3 config:** `./i3/config` — **symlinked** to `~/.config/i3/config`. `./i3/lock.sh` is **symlinked** to `~/.config/i3/lock.sh`. lock.sh deliberately does **not** touch DPMS — earlier versions scheduled `xset dpms force standby` 30s after locking, but that fed an infinite loop: forcing DPMS-standby fires the XSS screen-saver-activate callback, which xss-lock interprets as a fresh lock trigger and re-runs lock.sh. The `pgrep -x i3lock` re-entry guard isn't enough because i3lock can briefly exit between the cycles. Screen stays on while locked; press any key to wake the i3lock UI if it sleeps via the monitor's own power-save. **lock.sh is i3lock-variant-aware (since the Fedora 44 upgrade):** F44 swapped the `i3lock-color` fork for vanilla upstream `i3lock` 2.16, which rejects every themed flag (`--clock`, `--ring-color`, `--time-str`, …) and so silently failed to lock. lock.sh now probes `i3lock --help` for `--clock`: present → full gruvbox theme (clock + ring); absent → minimal `-n -e -f -i -t -c` set that still locks with the blurred screenshot, just no clock/ring overlay. It auto-upgrades back to the themed branch the moment `i3lock-color` is reinstalled — no edit needed. To restore the full theme, reinstall `i3lock-color` (not in F44 main repos or the enabled coprs; build from `Raymo111/i3lock-color` or a F44 copr). The image pipeline also prefers ImageMagick 7's `magick` over the legacy `convert` shim. Lid-close behavior is handled entirely by logind via `./logind/lid.conf`, **copied** (not symlinked) to `/etc/systemd/logind.conf.d/lid.conf`. Symlink doesn't work here: SELinux confines `systemd-logind` to `systemd_logind_t`, which can't traverse `user_home_dir_t` (your `0700` home dir) to follow a symlink into the repo. Copy gets the correct `systemd_conf_t` context automatically. Re-deploy after editing the repo file with the `logind` row in the Deploy table. Per `logind.conf(5)`, when more than one display is connected (`/sys/class/drm/*/status`) logind uses `HandleLidSwitchDocked=` regardless of ACPI dock state — so the USB-C/TB "not classified docked" issue is moot as long as external monitors are attached. Drop-in sets `HandleLidSwitchDocked=lock`: docked → screen locks, no suspend; undocked → default `HandleLidSwitch=suspend` fires, `xss-lock` locks before the suspend. **Do not re-introduce a `block:handle-lid-switch` inhibitor** — that swallows lid events entirely (no suspend, no lock) and was the cause of the 2026-05 dead-battery incident.
@@ -161,6 +210,13 @@ Full notes live in `./audio/` — this is just the map.
   GUI-launched apps like nvim-from-i3 inherit nvm's default node — otherwise
   language servers (`ngserver`, `typescript-language-server`) living under
   `~/.nvm/versions/node/<ver>/bin` aren't findable.
+
+- **herdr:** `./herdr/config.toml` — **symlinked** to `~/.config/herdr/config.toml`.
+  `./herdr/move-space.py` is **not** symlinked; `config.toml` calls it by absolute
+  repo path (same pattern as `tmux/claude-spinner.sh`). The `herdr` binary itself
+  lives at `~/.local/bin/herdr` and is not in the repo — reinstall it by hand from
+  the pinned release. Session state (`session.json`, sockets, logs) stays in
+  `~/.config/herdr/` and is deliberately untracked.
 
 **Everything is now symlinked.** Editing any repo file affects the live system
 immediately. Disaster recovery: clone this repo and run the bootstrap commands
@@ -191,6 +247,7 @@ services still need an explicit reload/restart for the new config to take effect
 | zsh     | `source ~/.zshrc` or open a new shell                    |
 | rofi    | no reload — reads config on every invocation             |
 | ghostty | applies to new windows; existing windows keep old config |
+| herdr   | `herdr server reload-config` (check `diagnostics` is `[]`)        |
 | logind  | `sudo install -m 644 ~/gits/dot_files/logind/lid.conf /etc/systemd/logind.conf.d/lid.conf && sudo systemctl reload systemd-logind` |
 | obsidian-sync | `systemctl --user daemon-reload && systemctl --user restart obsidian-sync.service` |
 
@@ -202,7 +259,7 @@ git clone git@github.com:Oranggge/dot_files.git ~/gits/dot_files
 cd ~/gits/dot_files
 
 # Create parent dirs that might not exist yet
-mkdir -p ~/.config/{nvim,polybar,rofi,ghostty,i3}
+mkdir -p ~/.config/{nvim,polybar,rofi,ghostty,i3,herdr}
 
 # Lock-screen dependencies (i3/lock.sh)
 #   maim + ImageMagick    -> the blurred/dimmed screenshot pipeline
@@ -235,6 +292,12 @@ ln -sf ~/gits/dot_files/polybar/disk.sh       ~/.config/polybar/disk.sh
 ln -sf ~/gits/dot_files/polybar/temp.sh       ~/.config/polybar/temp.sh
 ln -sf ~/gits/dot_files/rofi/config.rasi      ~/.config/rofi/config.rasi
 ln -sf ~/gits/dot_files/rofi/gruvbox-dark.rasi ~/.config/rofi/gruvbox-dark.rasi
+ln -sf ~/gits/dot_files/herdr/config.toml     ~/.config/herdr/config.toml
+
+# herdr — the binary is NOT in the repo. Download the pinned release by hand and
+# verify the hash (the manifest ships no sha256, so `herdr update` trusts TLS
+# alone). v0.7.3 sha256 043ef43ecbabda28465dcff1eec3184518150d567b8b8f20cda9c6c88770641d
+# into ~/.local/bin/herdr, then: herdr server reload-config
 
 # logind drop-in (lid behavior — needs sudo, copy not symlink, see Layout)
 sudo mkdir -p /etc/systemd/logind.conf.d/

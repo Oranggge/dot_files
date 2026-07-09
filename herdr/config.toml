@@ -1,0 +1,181 @@
+# herdr config — https://herdr.dev/docs/configuration/
+#
+# Installed 2026-07-09 by hand from the GitHub release, NOT via
+# `curl https://herdr.dev/install.sh | sh`:
+#   v0.7.3  sha256 043ef43ecbabda28465dcff1eec3184518150d567b8b8f20cda9c6c88770641d
+#
+# Goal of this file: no relearning. Keys mirror ~/gits/dot_files/.tmux.conf.
+
+# ---------------------------------------------------------------------------
+# Updates
+#
+# herdr's manifest (herdr.dev/latest.json) ships no sha256 for the unix assets,
+# so `herdr update` rename(2)s a new binary over ~/.local/bin/herdr with TLS as
+# the only integrity check. Both background channels are off:
+#   version_check  — startup ping for new herdr versions
+#   manifest_check — remote fetch of the agent-detection TOML rules that decide
+#                    working/blocked/done from a pane's screen contents
+# Update deliberately: re-download the pinned release and verify the hash.
+# ---------------------------------------------------------------------------
+[update]
+channel        = "stable"
+version_check  = false
+manifest_check = false
+
+[theme]
+name = "gruvbox"
+
+# Stock gruvbox paints the sidebar and the pane the same #282828, so nothing
+# separates them. Palette below is lifted from .tmux.conf:
+#   panel_bg    bg0_hard, one step darker than the pane -> sidebar reads as a panel
+#   surface_dim #504945 = tmux `pane-border-style`
+#   accent      #fabd2f = tmux `pane-active-border-style`
+[theme.custom]
+panel_bg    = "#1d2021"
+surface_dim = "#504945"
+accent      = "#fabd2f"
+text        = "#ebdbb2"
+
+[ui]
+# draw borders between split panes
+pane_borders = true
+# The agent panel lists every agent across every space. Default "spaces" groups
+# them by space; "priority" sorts by who needs you: blocked -> done -> working
+# -> idle -> unknown, most-recently-changed first within a status. That turns
+# the panel into a work queue instead of a directory listing.
+agent_panel_sort = "priority"
+# tmux: `bind -T copy-mode-vi WheelUpPane send-keys -X -N 1 scroll-up`
+# One line per wheel tick, same reasoning as .tmux.conf (continuous, not snap).
+mouse_scroll_lines = 1
+# tmux `prefix c` opens a window immediately; don't prompt for a name.
+prompt_new_tab_name = false
+
+[ui.sound]
+# OFF. herdr plays a "done" chime when an agent finishes and an "attention"
+# chime when one needs input — both would fire on top of the Kokoro/Silero
+# summary from ~/.claude/hooks/speak-summary.sh (Stop hook). One audio channel
+# is enough; the spoken summary carries strictly more information than a beep.
+enabled = false
+
+[advanced]
+# tmux: `set -g history-limit 50000`. herdr bounds scrollback by bytes, not
+# lines; 16 MiB ~ 50k lines at typical density.
+scrollback_limit_bytes = 16777216
+
+# ---------------------------------------------------------------------------
+# Keys — mapped from .tmux.conf. Unlisted actions keep herdr defaults.
+#
+# Naming: herdr's "vertical"/"horizontal" describe the DIVIDER, tmux's -h/-v
+# describe the split axis. They are opposites. tmux `split-window -h` (side by
+# side, bound to `|`) is herdr's split_vertical.
+# ---------------------------------------------------------------------------
+[keys]
+# tmux: `set-option -g prefix C-a`
+# Pressing it twice sends a literal C-a, exactly like `bind-key C-a send-prefix`
+# — so this also survives running herdr nested inside tmux.
+prefix = "ctrl+a"
+
+# tmux: `bind | split-window -h` / `bind - split-window -v`, plus tmux's own
+# defaults `%` (right) and `"` (down), which .tmux.conf never unbinds.
+# NB: herdr's "quote" key name is ' — for " use the literal char.
+split_vertical   = ["prefix+|", "prefix+percent", "prefix+v"]
+split_horizontal = ["prefix+minus", 'prefix+"']
+
+# tmux windows -> herdr tabs. `prefix ,` rename, `prefix &` kill (tmux defaults).
+rename_tab = ["prefix+comma", "prefix+shift+t"]
+close_tab  = ["prefix+ampersand", "prefix+shift+x"]
+
+# DELIBERATE BREAK from tmux, the only one in this file. tmux's `prefix c` makes
+# a new window, and herdr's default `prefix+c` makes the analogous new tab. But
+# the unit of work here is the SPACE (one repo / one project), not the tab —
+# spaces are what the sidebar lists and what prefix+j/k walks. So the cheapest
+# create key goes to the thing that gets created most. New tab moves to
+# `prefix+t` (free by default; rename_tab is prefix+SHIFT+t). herdr's stock
+# prefix+shift+n is kept as an alias so the default still works.
+new_workspace = ["prefix+c", "prefix+shift+n"]
+new_tab       = "prefix+t"
+
+# tmux: `bind-key -n C-h/j/k/l ... select-pane -L/D/U/R` (no prefix).
+# The bare ctrl chords are the real pane-navigation muscle memory; herdr's
+# default prefix+hjkl duplicated them. prefix+j / prefix+k have been handed to
+# workspace navigation instead (see next_workspace below) — pane nav loses
+# nothing, since ctrl+j / ctrl+k already cover it without a prefix.
+focus_pane_left  = ["prefix+h", "ctrl+h"]
+focus_pane_down  = ["ctrl+j"]
+focus_pane_up    = ["ctrl+k"]
+# NOTE: no `prefix+l` here — tmux gives prefix+l to last-window, not pane-right.
+# `ctrl+l` (bind-key -n C-l) still does pane-right, exactly as in .tmux.conf.
+focus_pane_right = ["ctrl+l"]
+
+# Spaces (workspaces) without opening the prefix+w picker. Both are UNSET by
+# default in herdr. j/k match the picker's own list keys below and the
+# down=next / up=previous orientation of the sidebar, so the direction means
+# the same thing whether or not the picker is open.
+next_workspace     = "prefix+j"
+previous_workspace = "prefix+k"
+
+# tmux: `prefix l` last-window, `prefix ;` last-pane, `bind-key -n C-\` select-pane -l.
+# herdr has no last-tab action; `last_pane` returns to the last focused pane
+# ACROSS tabs and workspaces, which covers tmux's last-window for single-pane
+# tabs and is strictly more precise when a tab has several panes.
+last_pane = ["prefix+l", "prefix+semicolon", "ctrl+backslash"]
+
+# tmux: `bind d detach` (default). herdr defaults to prefix+q; keep both.
+detach = ["prefix+d", "prefix+q"]
+
+# DISABLED ON PURPOSE. herdr binds swap_pane_* to prefix+shift+h/j/k/l — which
+# is exactly where .tmux.conf has repeatable `resize-pane -L/D/U/R 5`. Left as
+# default, reaching for a resize would silently swap two panes. herdr has no
+# directional resize action; resizing is modal: prefix+r, then h/j/k/l, Esc.
+# prefix+shift+j / prefix+shift+k are now REUSED for move-space (see the
+# [[keys.command]] block below). Note this chord means resize-pane in tmux and
+# move-space here — the one place the two tools disagree.
+swap_pane_left  = ""
+swap_pane_down  = ""
+swap_pane_up    = ""
+swap_pane_right = ""
+
+# Agent panel navigation — all three are UNSET by default in herdr.
+# With agent_panel_sort = "priority", `prefix+a` walks the queue top-down, so
+# the first press lands on whatever is blocked or newly done.
+next_agent     = "prefix+a"
+previous_agent = "prefix+shift+a"
+focus_agent    = "prefix+alt+1..9"
+
+# Navigate mode (the `prefix+w` workspace picker). Only these local keys are
+# live while it is open. herdr's defaults give j/k to PANE navigation, so in a
+# picker whose whole job is a vertical list of workspaces, j/k moved the wrong
+# axis. Handed j/k to the list, keeping up/down explicitly bound alongside them
+# (herdr only promises the LEFT/RIGHT arrows are hardwired, not up/down).
+# h/l still cross panes.
+navigate_workspace_up   = ["k", "up"]
+navigate_workspace_down = ["j", "down"]
+navigate_pane_up        = ""
+navigate_pane_down      = ""
+
+# Reorder the focused space in the sidebar — qutebrowser's shift+j/k for moving
+# a tab, applied to spaces. There is NO `move_workspace` key action and no
+# `herdr workspace move` CLI; reordering exists only as the socket method
+# `workspace.move`, so this shells out to a script that speaks it.
+# `type = "shell"` runs detached without stealing a pane.
+[[keys.command]]
+key     = "prefix+shift+j"
+type    = "shell"
+command = "/home/fedouser/gits/dot_files/herdr/move-space.py down"
+
+[[keys.command]]
+key     = "prefix+shift+k"
+type    = "shell"
+command = "/home/fedouser/gits/dot_files/herdr/move-space.py up"
+
+[terminal]
+# Keep the default. Measured 2026-07-09:
+#   "follow"  -> inherits the SOURCE workspace; a brand-new workspace has none,
+#                so it lands in $HOME. Splits/new tabs DO inherit the current
+#                pane, which is what `bind c new-window -c "#{pane_current_path}"`
+#                gives us in tmux. That part is right.
+#   "current" -> the herdr SERVER's process dir, frozen at server start. NOT the
+#                directory you typed `herdr` in. Misleading name; do not use.
+# Only an explicit --cwd opens a workspace in the dir you launched from, which
+# is what the `herdr()` wrapper in .zshrc passes.
+new_cwd = "follow"
