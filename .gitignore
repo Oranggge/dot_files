@@ -1,0 +1,12 @@
+# Vendored third-party Agent Skills. Every skill under .agents/skills/ is
+# installed from someone else's repo (mattpocock/skills, anthropics/skills,
+# microsoft/playwright-cli, nexu-io/open-design, vercel-labs/skills) and is
+# pinned by .agents/.skill-lock.json, which records each source URL and folder
+# hash. The lockfile IS tracked, so the set is reproducible; the payload is not
+# ours to redistribute from a public repo, and it is 6 MB (5.6 MB of that is 54
+# .ttf files vendored by canvas-design).
+.agents/skills/
+
+# Claude Code's per-machine permission allowlist — a local override by design,
+# and it accumulates one-off `Bash(rm ...)` grants specific to this box.
+.claude/settings.local.json
