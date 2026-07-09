@@ -53,7 +53,10 @@ copy-on-select = clipboard
 clipboard-paste-protection = false
 clipboard-trim-trailing-spaces = true
 
-keybind = shift+enter=text:\x1b\r
+# Send an explicit CSI-u Shift+Enter sequence. This stays unambiguous inside
+# tmux and avoids colliding with our global tmux C-j pane-switch binding.
+keybind = shift+enter=text:\x1b[13;2u
+
 
 bell-features = attention,title,audio
 bell-audio-path = /usr/share/sounds/freedesktop/stereo/complete.oga

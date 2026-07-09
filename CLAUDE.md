@@ -351,3 +351,31 @@ by explicit `run-shell` lines at the bottom of `.tmux.conf`.
   (UserPromptSubmit / PermissionRequest / Stop) — see Bootstrap below.
 
 Reinstall step is in the Bootstrap section above.
+
+## Tmux Claude "working" spinner
+
+An animated blue braille spinner appears in the tmux status bar on any tab where
+Claude Code is **actively thinking**, so you can see across tabs which sessions
+are busy. Distinct from `tmux-agent-indicator` (which colours tabs on
+*needs-input*/*done* — i.e. after Claude stops); the two never overlap in time.
+
+- **Detection (no hooks):** Claude continuously animates a spinner into its
+  *pane title* (`#{pane_title}`) while thinking, and uses `✳ …` as the idle
+  marker. So "working" = active pane's `pane_current_command == claude` **AND**
+  pane title does **not** match `✳*`. This predicate is inlined into both
+  `window-status-format` / `window-status-current-format` in `.tmux.conf` (tmux
+  has no format variables, hence the duplication). It gates the spinner per-window.
+- **Animation:** pure tmux formats can't animate (no clock/tick var), so
+  `tmux/claude-spinner.sh` supplies motion — a single-instance (`flock`) daemon
+  that advances the global `@cc_spin_frame` option ~8fps and `refresh-client -S`s
+  the status, but only while a Claude tab is working (else it drops to a cheap 1s
+  idle poll). Launched by `run-shell -b ~/gits/dot_files/tmux/claude-spinner.sh`
+  at the bottom of `.tmux.conf`. If the daemon isn't running the format falls
+  back to `#{=1:pane_title}` (Claude's own live but tiny single-dot braille frame).
+- **Not symlinked:** `claude-spinner.sh` is referenced by absolute repo path from
+  `.tmux.conf` (which *is* symlinked), so no Bootstrap symlink is needed — clone
+  the repo to `~/gits/dot_files` and it just works.
+- **Tweaks:** spinner frames (incl. a chunkier `⣾⣽⣻⢿⡿⣟⣯⣷` set), colour
+  (`#83a598`), and fps (`sleep 0.12`) are all at the top of the formats /
+  `claude-spinner.sh`. `status-interval` was lowered to `1` for prompt
+  appear/clear.
