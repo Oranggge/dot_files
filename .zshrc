@@ -155,6 +155,16 @@ function y() {
 	rm -f -- "$tmp"
 }
 
+# image preview: `v <path>` opens image(s) in feh; `imgd` feh's every image
+# changed in the working tree (handy for the VR snapshots Claude points at —
+# arrow-key through them). For inline-in-terminal previews use the Ctrl+T fzf
+# binding below, which renders images with chafa in the preview pane.
+v() { feh --scale-down "$@"; }
+imgd() {
+	local imgs=("${(@f)$(git ls-files -mo --exclude-standard 2>/dev/null | grep -iE '\.(png|jpe?g|gif|webp)$')}")
+	(( ${#imgs} )) && feh --scale-down "${imgs[@]}" || echo "no changed images"
+}
+
 # fzf config
 source <(fzf --zsh)
 # Ctrl+T: file finder with bat preview
