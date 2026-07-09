@@ -216,7 +216,16 @@ Re-download the pinned release and verify the hash by hand.
   GUI-launched apps like nvim-from-i3 inherit nvm's default node — otherwise
   language servers (`ngserver`, `typescript-language-server`) living under
   `~/.nvm/versions/node/<ver>/bin` aren't findable.
-
+- **Pi coding agent:** `./pi/agent/` is **symlinked** into `~/.pi/agent/` by
+  `./pi/install.sh` (settings, AGENTS.md, mcp.json, extensions, prompts,
+  subagents, and the Pi-native code-review skill). Shared Agent Skills live in
+  `./.agents/` and are symlinked to `~/.agents/` by the same installer. Secrets
+  and generated state stay local: `auth.json`, sessions, MCP OAuth/cache files,
+  `trust.json`, and package installs under `~/.pi/agent/npm/`.
+  **`.agents/skills/` is gitignored** — every skill in it comes from an upstream
+  repo and is pinned by the tracked `.agents/.skill-lock.json`. On a fresh clone
+  the directory does not exist, so `install.sh`'s `~/.agents/skills` symlink
+  dangles until you reinstall them (`npx skills add …`, see `find-skills`).
 - **herdr:** `./herdr/config.toml` — **symlinked** to `~/.config/herdr/config.toml`.
   `./herdr/move-space.py` is **not** symlinked; `config.toml` calls it by absolute
   repo path (same pattern as `tmux/claude-spinner.sh`). The `herdr` binary itself
@@ -253,6 +262,7 @@ services still need an explicit reload/restart for the new config to take effect
 | zsh     | `source ~/.zshrc` or open a new shell                    |
 | rofi    | no reload — reads config on every invocation             |
 | ghostty | applies to new windows; existing windows keep old config |
+| pi      | `~/gits/dot_files/pi/install.sh`, then restart Pi or run `/reload` |
 | herdr   | `herdr server reload-config` (check `diagnostics` is `[]`)        |
 | logind  | `sudo install -m 644 ~/gits/dot_files/logind/lid.conf /etc/systemd/logind.conf.d/lid.conf && sudo systemctl reload systemd-logind` |
 | obsidian-sync | `systemctl --user daemon-reload && systemctl --user restart obsidian-sync.service` |
@@ -304,6 +314,9 @@ ln -sf ~/gits/dot_files/herdr/config.toml     ~/.config/herdr/config.toml
 # verify the hash (the manifest ships no sha256, so `herdr update` trusts TLS
 # alone). v0.7.3 sha256 043ef43ecbabda28465dcff1eec3184518150d567b8b8f20cda9c6c88770641d
 # into ~/.local/bin/herdr, then: herdr server reload-config
+
+# Pi coding-agent config and shared Agent Skills
+~/gits/dot_files/pi/install.sh
 
 # logind drop-in (lid behavior — needs sudo, copy not symlink, see Layout)
 sudo mkdir -p /etc/systemd/logind.conf.d/
