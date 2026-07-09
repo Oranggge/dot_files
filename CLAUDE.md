@@ -120,6 +120,29 @@ Full notes live in `./audio/` — this is just the map.
     dropped), and the **tmux window of the talking answer is marked** (`🔊 ` name
     prefix + status banner) so you can see which one it is. `SPEAK_FOCUS=on`
     also jumps focus to it. Full design in `audio/claude-code-voice-summary.md`.
+  - **Which space is talking, under herdr (added 2026-07-09):** there is no
+    `$TMUX` in herdr, so the tmux marker above silently no-ops and summaries used
+    to play with zero visual attribution — bad with six agents up, two of them in
+    identically-named `hermes` spaces where even the per-project voice can't tell
+    you which is which. The Stop hook now marks the speaking pane with
+    `herdr pane report-metadata`, setting **`custom_status` = `🔊` and nothing
+    else**. The panel renders a row as `<state> · <display_agent> · <custom_status>`,
+    so setting both fields printed the emoji twice (`done · 🔊 claude · 🔊 hermes`)
+    and repeated the space label above it; `custom_status` is the field meant for
+    ephemeral status, while `display_agent` is for *renaming* the agent. Better
+    than `rename-window` on two counts: metadata is **layered
+    per `--source`** (our layer never clobbers herdr's own `herdr:claude` one, and
+    clearing reveals it again — nothing to snapshot/restore), and **`--ttl-ms` is a
+    dead-man's switch**, so a hook killed mid-playback cannot strand a `🔊`.
+    `custom_status` is **hard-truncated at 32 chars** server-side. The mark leads
+    the audio by `SPEAK_MARK_LEAD` (0.6s) and lingers `SPEAK_MARK_LAG` (1.5s) past
+    it — both waits *inside* the flock, which is what keeps "exactly one 🔊 on
+    screen" true. **`prefix+o` → `herdr/speak-focus.py`** jumps to the speaking
+    space, or the last one to speak; it replaces `SPEAK_FOCUS=on` as the way to
+    chase a voice. **Editing hazard:** the playback block is a single-quoted
+    `setsid bash -c '…'` string — a lone `'` inside it (an `awk '{…}'`, an `''`
+    case pattern) ends the quote and spills into the outer shell; `bash -n` passes
+    and it fails at runtime as `$1: unbound variable`. Keep that block quote-free.
   - **Engines:** Kokoro in venv `~/tts-kokoro/` (model in `~/tts-models/kokoro/`,
     ~340 MB), Silero in `~/tts-silero/` (CPU torch; model
     `~/tts-models/silero/v5_ru.pt`, ~140 MB), legacy Piper fallback in `~/tts/`
@@ -174,6 +197,18 @@ the raw socket method `workspace.move`. A `[[keys.command]]` entry
 (`type = "shell"`) shells out to it. Referenced by absolute repo path from
 `config.toml`, same as `tmux/claude-spinner.sh`, so it needs no Bootstrap symlink.
 
+**`herdr/speak-focus.py`** (`prefix+o`) jumps to the space whose Claude summary is
+speaking — or, once it's silent, the one that spoke last. It reads the `🔊` mark
+that the Stop hook writes via `pane.report_metadata` (see Audio & Voice), falling
+back to `~/.claude/speak-summary-speaker`. Same absolute-path `[[keys.command]]`
+pattern as `move-space.py`. It does **not** use herdr's stock `prefix+o`
+(`open_notification_target`), which jumps to the target of the last *notification*:
+that target is set by herdr's internal agent-state notifications, and
+`notification.show` — the only notification a CLI can raise — takes
+`title`/`body`/`position`/`sound` and **no target**, so an externally-fired toast
+can never aim it. `config.toml` unbinds it (`open_notification_target = ""`) and
+takes the key. (`[ui.toast] delivery` is off anyway, so the key was dead.)
+
 `workspace.move`'s `insert_index` is **0-based against the list as it currently
 is** — "put this space where the space now at `insert_index` sits". Because
 removing the space shifts everything after it left by one, a *downward* move
@@ -227,7 +262,8 @@ Re-download the pinned release and verify the hash by hand.
   the directory does not exist, so `install.sh`'s `~/.agents/skills` symlink
   dangles until you reinstall them (`npx skills add …`, see `find-skills`).
 - **herdr:** `./herdr/config.toml` — **symlinked** to `~/.config/herdr/config.toml`.
-  `./herdr/move-space.py` is **not** symlinked; `config.toml` calls it by absolute
+  `./herdr/move-space.py` and `./herdr/speak-focus.py` are **not** symlinked;
+  `config.toml` calls them by absolute
   repo path (same pattern as `tmux/claude-spinner.sh`). The `herdr` binary itself
   lives at `~/.local/bin/herdr` and is not in the repo — reinstall it by hand from
   the pinned release. Session state (`session.json`, sockets, logs) stays in

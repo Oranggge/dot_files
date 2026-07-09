@@ -18,6 +18,21 @@ log(){ printf '%s [baseline] %s\n' "$(date '+%F %T')" "$*" >> "$LOG_FILE" 2>/dev
 input="$(cat)"
 transcript="$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null)"
 session_id="$(printf '%s' "$input" | jq -r '.session_id // "default"' 2>/dev/null)"
+
+# Belt-and-braces: drop any speak-summary mark left on this herdr pane. The Stop
+# hook clears its own mark and sizes a ttl_ms as backstop, so a survivor here
+# means something died in an unusual way (SIGKILL between mark and clear, a
+# server restart that replayed old metadata). You are submitting a new prompt,
+# so nothing in this pane can still be speaking the previous answer.
+# Runs BEFORE the transcript guard below — it needs no transcript, and the
+# whole point is to fire on paths where the rest of this hook bails out.
+if [ -n "${HERDR_PANE_ID:-}" ]; then
+  herdr_bin="$(command -v herdr 2>/dev/null)" || herdr_bin=""
+  [ -n "$herdr_bin" ] || { [ -x "$HOME/.local/bin/herdr" ] && herdr_bin="$HOME/.local/bin/herdr"; }
+  [ -n "$herdr_bin" ] && "$herdr_bin" pane report-metadata "$HERDR_PANE_ID" \
+    --source speak-summary --clear-custom-status --clear-display-agent >/dev/null 2>&1
+fi
+
 [ -n "$transcript" ] && [ -f "$transcript" ] || { log "skip: no transcript"; exit 0; }
 
 mkdir -p "$STATE_DIR" 2>/dev/null

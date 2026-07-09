@@ -43,8 +43,9 @@ last line of every answer (`🗣️ …`), and two cooperating hooks turn it int
    the prompt is never blocked by the ~3–5 s CPU synthesis. Every error path
    exits 0 → can never block or break a session.
 5. **Playback is serialized across sessions** (see below) so simultaneous
-   finishers take turns instead of overlapping, and the **tmux window of the
-   currently-speaking answer is marked** so you can see which one is talking.
+   finishers take turns instead of overlapping, and the **tmux window / herdr
+   space of the currently-speaking answer is marked** so you can see which one is
+   talking. Under herdr, `prefix+o` jumps to it.
 
 ### TTS engines (since 2026-06-11)
 
@@ -156,6 +157,73 @@ mush. The detached block now coordinates across **all** sessions:
   speaking window — stronger "show me which one," but it hijacks your cursor, so
   it's opt-in.
 
+### herdr marker (added 2026-07-09)
+
+Under [herdr](../herdr/) there is no `$TMUX`, so the tmux block above silently
+no-ops and a summary used to play with **zero visual attribution** — worst case
+with six agents up, two of which sit in identically-named spaces (two `hermes`
+worktrees), where even the per-project voice can't disambiguate them.
+
+The hook now marks the speaking pane via `herdr pane report-metadata`. This is a
+better primitive than `rename-window`, for two reasons:
+
+- **Layered per `--source`.** The `speak-summary` layer sits on top of herdr's own
+  `herdr:claude` layer rather than overwriting it, and clearing ours reveals what
+  was underneath. Nothing to snapshot, nothing to restore — contrast the tmux path,
+  which has to save/restore both the window name *and* `automatic-rename`.
+- **`--ttl-ms` is a dead-man's switch.** The mark expires by itself. A hook killed
+  between mark and clear cannot strand a `🔊` the way rename/restore could. The
+  explicit clear is the normal path; the ttl is sized to `lead + audio + lag + 3 s`
+  and only ever fires if we die. `speak-summary-baseline.sh` sweeps the pane once
+  more on `UserPromptSubmit` (before its own transcript guard, so it fires even on
+  the bail-out paths) — belt and braces.
+
+What you see: a single `🔊` appended to that pane's row in the agent panel.
+
+**One field, not two.** The panel renders a row as
+`<space label>` / `<state> · <display_agent> · <custom_status>`, so setting both
+printed the emoji twice and repeated the space label right below itself:
+
+```
+hermes                            hermes
+done · 🔊 claude · 🔊 hermes  ->   done · claude · 🔊
+```
+
+`custom_status` is the right field — it exists for exactly this kind of ephemeral
+status, whereas `display_agent` exists to *rename* the agent (and using it would
+hardcode the name `claude`). The clear still clears `display_agent` too, to sweep
+marks left behind by the two-field version. **`custom_status` is hard-truncated at
+32 chars server-side**; moot for a one-emoji mark, but it rules out ever putting
+the spoken sentence there.
+
+The mark **leads** the audio by `SPEAK_MARK_LEAD` (0.6 s) and **lingers**
+`SPEAK_MARK_LAG` (1.5 s) past it, so your eye lands on the space before the voice
+starts and can still find it once the voice stops. Both waits sit *inside* the
+`flock`, which is what keeps "exactly one 🔊 on screen" true. The emoji itself is
+`SPEAK_MARK` (default `🔊`).
+
+- **`prefix+o` → [`herdr/speak-focus.py`](../herdr/speak-focus.py)** jumps to the
+  space that is speaking, or — once it has fallen silent — the one that spoke last
+  (from `~/.claude/speak-summary-speaker`, rewritten under the lock, so last-writer
+  really is the last speaker). This supersedes `SPEAK_FOCUS=on` under herdr: focus
+  stays where you put it and you chase the voice only when you want to. `SPEAK_FOCUS=on`
+  still works (it calls `herdr workspace focus`) if you want the old teleport.
+- **Not herdr's own `open_notification_target`**, which is what `prefix+o` does by
+  default. That action jumps to the target of herdr's *last notification*, and the
+  target is set by herdr's internal agent-state notifications. `notification.show`
+  — the only notification a CLI can raise — takes `title`/`body`/`position`/`sound`
+  and **no target at all**, so a toast fired by this hook could never aim the key.
+  The config unbinds it (`open_notification_target = ""`) and rebinds `prefix+o`
+  to the script. (`[ui.toast] delivery` is off here anyway, so the key was dead.)
+
+> **Editing warning.** The playback block is a single-quoted string passed to
+> `setsid bash -c '…'`. A lone `'` anywhere inside it — an `awk '{…}'` program, an
+> `''` empty-string `case` pattern — **ends the quote** and spills the remainder
+> into the outer shell. `bash -n` still passes; it fails at runtime with something
+> unrelated-looking like `$1: unbound variable`. Keep that block free of single
+> quotes: float→ms conversion happens in the outer script (`SPK_LEAD_MS`,
+> `SPK_LAG_MS`) precisely so the inner block needs no `awk`.
+
 ### Why the two-hook / uuid / poll dance
 
 Two transcript-timing bugs forced this design, both now fixed:
@@ -195,6 +263,14 @@ unlike `.zshrc` etc.), so they are vendored here as reference copies:
 | `~/.claude/CLAUDE.md` (the 🗣️ instruction block) | quoted in that file |
 | `~/.claude/settings.json` → `hooks.Stop[]` + `hooks.UserPromptSubmit[]` | snippets below |
 
+`herdr/speak-focus.py` is the exception: it is **not** a hook, and **not**
+symlinked. `~/.config/herdr/config.toml` (which *is* symlinked) calls it by
+absolute repo path from a `[[keys.command]]`, same pattern as
+`herdr/move-space.py` and `tmux/claude-spinner.sh`. Clone to `~/gits/dot_files`
+and it works. Generated state that stays local: `~/.claude/speak-summary-speaker`
+(the last speaker, for `prefix+o`), `~/.claude/speak-summary.lock`,
+`~/.claude/speak-summary-state/`.
+
 `settings.json` entries:
 ```json
 // hooks.Stop[]
@@ -223,7 +299,10 @@ Playback-coordination knobs (see "Cross-session serialization" above):
 
 ```sh
 SPEAK_MAX_WAIT=25 claude     # drop summaries queued behind others longer than N s (default 25)
-SPEAK_FOCUS=on claude        # also jump tmux focus to the speaking window (default off)
+SPEAK_FOCUS=on claude        # also jump focus to the speaking tmux window / herdr space (default off)
+SPEAK_MARK=🔊 claude          # the marker emoji (default 🔊)
+SPEAK_MARK_LEAD=0.6 claude   # seconds the marker appears BEFORE the audio (default 0.6)
+SPEAK_MARK_LAG=1.5 claude    # seconds the marker lingers AFTER the audio (default 1.5)
 ```
 
 ## Change / pin voices

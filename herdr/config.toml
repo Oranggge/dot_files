@@ -161,6 +161,14 @@ navigate_workspace_down = ["j", "down"]
 navigate_pane_up        = ""
 navigate_pane_down      = ""
 
+# Free prefix+o for the speak-focus command below. The stock action jumps to the
+# target of herdr's last notification, and [ui.toast] delivery is off here (see
+# [ui.sound]: one audio+visual channel is enough), so nothing ever sets a target
+# — the key was dead. Even with toasts on it would stay useless for our purpose:
+# `notification.show` accepts no target, so a toast raised by the speak hook
+# cannot aim this key at the speaking space.
+open_notification_target = ""
+
 # Reorder the focused space in the sidebar — qutebrowser's shift+j/k for moving
 # a tab, applied to spaces. There is NO `move_workspace` key action and no
 # `herdr workspace move` CLI; reordering exists only as the socket method
@@ -175,6 +183,17 @@ command = "/home/fedouser/gits/dot_files/herdr/move-space.py down"
 key     = "prefix+shift+k"
 type    = "shell"
 command = "/home/fedouser/gits/dot_files/herdr/move-space.py up"
+
+# Jump to the space whose Claude summary is speaking — or, once it has fallen
+# silent, to the one that spoke last. The Stop hook marks the speaking pane with
+# `pane.report_metadata --source speak-summary` (a 🔊 on the agent entry) and
+# playback is serialized by a global flock, so exactly one space wears the mark
+# at a time. This replaces tmux's SPEAK_FOCUS=on teleport: focus stays where you
+# put it, and you chase the voice only when you want to.
+[[keys.command]]
+key     = "prefix+o"
+type    = "shell"
+command = "/home/fedouser/gits/dot_files/herdr/speak-focus.py"
 
 [terminal]
 # Keep the default. Measured 2026-07-09:

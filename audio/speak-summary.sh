@@ -210,16 +210,70 @@ printf '%s' "$uuid" > "$STATE_FILE" 2>/dev/null
 # people taking turns). To stop a burst becoming a monologue, a summary that
 # has waited longer than MAX_WAIT in the queue is dropped instead of played.
 #
-# While a summary plays we also mark its tmux window (prepend 🔊 to the name)
-# and flash a status-line banner, so you can see WHICH answer is talking right
-# now. Because playback is serialized, the lit window is a clean 1:1 signal for
-# the current voice. Set SPEAK_FOCUS=on to also jump focus to that window.
+# While a summary plays we also mark the window/space it came from, so you can
+# see WHICH answer is talking right now. Because playback is serialized, the lit
+# window is a clean 1:1 signal for the current voice.
+#
+#   tmux  — prepend 🔊 to the window name + flash a status-line banner, then
+#           restore both afterwards.
+#   herdr — `pane report-metadata` on the speaking pane. Strictly better than the
+#           tmux rename: metadata is layered per --source (so the speak-summary
+#           layer never clobbers herdr's own herdr:claude layer, and clearing it
+#           reveals what was underneath) and it carries a ttl_ms, so a hook that
+#           dies mid-playback can't strand a 🔊 the way rename/restore could.
+#           The explicit clear below is the normal path; the ttl is the backstop.
+#
+#           ONE field, not two. The agent panel renders a row as
+#               <space label> / <state> · <display_agent> · <custom_status>
+#           so setting both display_agent and custom_status printed the emoji
+#           TWICE (`done · 🔊 claude · 🔊 hermes`) and repeated the space label
+#           that already sits on the line above. custom_status is the right field:
+#           it exists for exactly this kind of ephemeral status, while
+#           display_agent exists to RENAME the agent (using it would also hardcode
+#           the name "claude"). The clear below still clears display_agent too, to
+#           sweep marks left by the two-field version.
+#           NOTE: custom_status is hard-truncated at 32 chars server-side. Moot
+#           now that the mark is a single emoji, but it rules out ever putting the
+#           spoken sentence here.
+#
+# The mark leads the audio by SPEAK_MARK_LEAD seconds and lingers SPEAK_MARK_LAG
+# seconds past it, so the eye lands on the space before the voice starts and can
+# still find it after the voice stops. Both waits sit INSIDE the lock, which is
+# what keeps "exactly one 🔊 on screen" true.
+#
+# Set SPEAK_FOCUS=on to also jump focus to the speaking window/space. Under herdr
+# you usually don't want that: herdr/speak-focus.py (bound to prefix+o) jumps to
+# the current — or most recent — speaker on demand instead.
 LOCK_FILE="$HOME/.claude/speak-summary.lock"
 MAX_WAIT="${SPEAK_MAX_WAIT:-25}"          # drop summaries queued longer than this (s)
 START_EPOCH="$(date +%s)"
 FOCUS="off"; case "${SPEAK_FOCUS:-}" in on|1|true) FOCUS="on";; esac
 TPANE=""; [ -n "${TMUX:-}" ] && TPANE="${TMUX_PANE:-}"
 PROJECT="$(basename "$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$cwd")")"
+
+# --- herdr marking ----------------------------------------------------------
+# The hook inherits Claude's environment, so HERDR_PANE_ID is set iff this
+# session lives in a herdr pane. Resolve the binary explicitly: a hook's PATH is
+# not a login shell's.
+SPK_HERDR_BIN=""
+if [ -n "${HERDR_PANE_ID:-}" ]; then
+  SPK_HERDR_BIN="$(command -v herdr 2>/dev/null)" || SPK_HERDR_BIN=""
+  [ -n "$SPK_HERDR_BIN" ] || { [ -x "$HOME/.local/bin/herdr" ] && SPK_HERDR_BIN="$HOME/.local/bin/herdr"; }
+fi
+SPK_HPANE=""; [ -n "$SPK_HERDR_BIN" ] && SPK_HPANE="${HERDR_PANE_ID:-}"
+SPK_MARK="${SPEAK_MARK:-🔊}"
+SPK_LEAD="${SPEAK_MARK_LEAD:-0.6}"        # seconds the mark precedes the audio
+SPK_LAG="${SPEAK_MARK_LAG:-1.5}"          # seconds the mark outlives the audio
+SPK_SPEAKER_FILE="$HOME/.claude/speak-summary-speaker"
+# Millisecond forms for the ttl arithmetic. Converted HERE, in the outer script,
+# because the detached block below is a single-quoted string: a lone ' anywhere
+# inside it (an awk program, an '' empty-string case pattern) silently ends the
+# quote and spills the rest into this shell. `bash -n` still passes. Keep that
+# block free of single quotes.
+SPK_LEAD_MS="$(awk -v s="$SPK_LEAD" 'BEGIN{printf "%d", s*1000}')"
+SPK_LAG_MS="$(awk -v s="$SPK_LAG" 'BEGIN{printf "%d", s*1000}')"
+export SPK_HERDR_BIN SPK_HPANE SPK_MARK SPK_LEAD SPK_LAG SPK_SPEAKER_FILE \
+       SPK_LEAD_MS SPK_LAG_MS
 
 # --- synthesize + play, fully detached so it never blocks the prompt --------
 # Synthesis happens BEFORE the lock (parallel across sessions is fine); only
@@ -258,13 +312,38 @@ log "speaking (uuid=${uuid:0:8}, lang=$LANG_TAG, engine=$ENGINE, voice=$VOICE): 
         oldname="$(tmux display-message -p -t "$win" "#{window_name}" 2>/dev/null)";
         oldauto="$(tmux show-options -wv -t "$win" automatic-rename 2>/dev/null)"; [ -n "$oldauto" ] || oldauto=on;
         tmux set-window-option -t "$win" automatic-rename off 2>/dev/null;
-        tmux rename-window -t "$win" "🔊 $oldname" 2>/dev/null;
-        tmux display-message "🔊 $proj: $txt" 2>/dev/null;
+        tmux rename-window -t "$win" "$SPK_MARK $oldname" 2>/dev/null;
+        tmux display-message "$SPK_MARK $proj: $txt" 2>/dev/null;
         [ "$focus" = "on" ] && tmux select-window -t "$win" 2>/dev/null;
       fi
     fi
 
+    # herdr attention: mark the pane (and therefore its space) for the whole of
+    # lead + audio + lag. ttl_ms is sized to that window plus slack, so it only
+    # ever fires if we die before the explicit clear below.
+    # NB: no single quotes below — see the SPK_LEAD_MS comment above.
+    if [ -n "$SPK_HPANE" ]; then
+      dur_s="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$tmp" 2>/dev/null)";
+      dur_s="${dur_s%%.*}";
+      case "$dur_s" in ""|*[!0-9]*) dur_s=8;; esac;
+      ttl=$(( SPK_LEAD_MS + (dur_s + 1) * 1000 + SPK_LAG_MS + 3000 ));
+      "$SPK_HERDR_BIN" pane report-metadata "$SPK_HPANE" --source speak-summary \
+        --custom-status "$SPK_MARK" --ttl-ms "$ttl" >/dev/null 2>&1;
+      # remember who is talking, so speak-focus.py can jump here on prefix+o
+      printf "%s %s %s %s\n" "${SPK_HPANE%%:*}" "$SPK_HPANE" "$(date +%s)" "$proj" \
+        > "$SPK_SPEAKER_FILE" 2>/dev/null;
+      [ "$focus" = "on" ] && "$SPK_HERDR_BIN" workspace focus "${SPK_HPANE%%:*}" >/dev/null 2>&1;
+      sleep "$SPK_LEAD";
+    fi
+
     ffplay -nodisp -autoexit -loglevel quiet "$tmp" >/dev/null 2>&1;
+
+    # let the mark outlive the voice, then take it down explicitly
+    if [ -n "$SPK_HPANE" ]; then
+      sleep "$SPK_LAG";
+      "$SPK_HERDR_BIN" pane report-metadata "$SPK_HPANE" --source speak-summary \
+        --clear-custom-status --clear-display-agent >/dev/null 2>&1;
+    fi
 
     # restore the window name + automatic-rename state
     if [ -n "$win" ]; then
