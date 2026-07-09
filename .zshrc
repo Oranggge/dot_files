@@ -221,3 +221,49 @@ alias lg="lazygit"
 
 # starship prompt (config at ~/.config/starship.toml)
 eval "$(starship init zsh)"
+
+# herdr: make bare `herdr` open a workspace rooted at $PWD, like `tmux` does.
+#
+# herdr has no config option for this. Measured 2026-07-09:
+#   [terminal] new_cwd = "follow"  -> a NEW workspace has no source, lands in $HOME
+#   [terminal] new_cwd = "current" -> the *server's* process dir, frozen at start
+# Only an explicit `--cwd` works, and that's CLI-only. Hence this wrapper.
+#
+# Any argument at all (`herdr status`, `herdr server stop`, `herdr --remote …`)
+# passes straight through untouched. Workspaces are keyed by directory basename,
+# which is exactly how herdr labels them, so re-running `herdr` in a project
+# refocuses that workspace instead of piling up duplicates.
+herdr() {
+	local bin=$HOME/.local/bin/herdr
+	(( $# )) && { command $bin "$@"; return }
+
+	if ! command $bin status server 2>/dev/null | command grep -q 'status: running'; then
+		(command $bin server &) >/dev/null 2>&1
+		local i
+		for i in {1..40}; do
+			[[ -S $HOME/.config/herdr/herdr.sock ]] && break
+			command sleep 0.05
+		done
+	fi
+
+	# herdr labels a workspace with the directory basename — except $HOME, which
+	# it labels "~". Without this, `herdr` from ~ would never match and would
+	# create a new duplicate workspace on every invocation.
+	local label=${PWD:t} wid
+	[[ $PWD == $HOME ]] && label='~'
+	wid=$(command $bin workspace list 2>/dev/null | command python3 -c "
+import json,sys
+label=sys.argv[1]
+for w in json.load(sys.stdin)['result']['workspaces']:
+    if w['label'] == label:
+        print(w['workspace_id']); break
+" "$label" 2>/dev/null)
+
+	if [[ -n $wid ]]; then
+		command $bin workspace focus "$wid" >/dev/null 2>&1
+	else
+		command $bin workspace create --cwd "$PWD" --focus >/dev/null 2>&1
+	fi
+
+	command $bin
+}
