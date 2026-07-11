@@ -177,13 +177,18 @@ index of panes where herdr detected an AI agent, each entry pointing back at a
 list re-sorts to blocked → done → working → idle, which makes `prefix+a` a
 triage queue rather than a directory walk.
 
-**Keys mirror `.tmux.conf`** so there is nothing to relearn, with three
+**Keys mirror `.tmux.conf`** so there is nothing to relearn, with four
 deliberate exceptions, all documented inline in `config.toml`. The theme of all
-three: **the cheap keys index spaces, not tabs**, because the space is the unit
+four: **the cheap keys index spaces, not tabs**, because the space is the unit
 of work here (one repo / one project) and tabs are barely used.
 
 - `prefix+c` makes a new **space**, not a new tab (new tab moved to `prefix+t`).
   tmux's `prefix c` = new-window is the muscle memory being broken.
+- `prefix+,` renames the **space**, not the tab (tmux's `prefix ,` =
+  rename-window). Tab rename keeps herdr's stock `prefix+shift+t`. Unlike
+  `workspace.move`, this needed no script: `rename_workspace` *is* a real key
+  action (stock `prefix+shift+w`, kept as an alias) — it was simply never bound
+  to the key the fingers reach for.
 - `prefix+1..9` jumps to **space** N; tabs move to `prefix+shift+1..9`. In tmux
   `prefix <n>` selects a window (= a herdr tab). Note `prefix+1..9` indexes the
   sidebar *order*, which is exactly what `move-space.py` rearranges.

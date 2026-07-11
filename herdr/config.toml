@@ -81,11 +81,20 @@ prefix = "ctrl+a"
 split_vertical   = ["prefix+|", "prefix+percent", "prefix+v"]
 split_horizontal = ["prefix+minus", 'prefix+"']
 
-# tmux windows -> herdr tabs. `prefix ,` rename, `prefix &` kill (tmux defaults).
-rename_tab = ["prefix+comma", "prefix+shift+t"]
-close_tab  = ["prefix+ampersand", "prefix+shift+x"]
+# tmux windows -> herdr tabs. `prefix &` kill (tmux default).
+close_tab = ["prefix+ampersand", "prefix+shift+x"]
 
-# DELIBERATE BREAK from tmux, the only one in this file. tmux's `prefix c` makes
+# Same space-not-tab reasoning as prefix+c and prefix+1..9 below. tmux's
+# `prefix ,` is rename-WINDOW, but the name worth curating here belongs to the
+# space: it is what the sidebar lists, what prefix+1..9 indexes, and what the
+# agent panel points back at. Tabs are barely used and almost never named, so
+# the cheap key goes to the space and rename_tab keeps only herdr's stock
+# prefix+shift+t. herdr's own rename_workspace default (prefix+shift+w) stays
+# as an alias.
+rename_workspace = ["prefix+comma", "prefix+shift+w"]
+rename_tab       = "prefix+shift+t"
+
+# DELIBERATE BREAK from tmux, one of several here. tmux's `prefix c` makes
 # a new window, and herdr's default `prefix+c` makes the analogous new tab. But
 # the unit of work here is the SPACE (one repo / one project), not the tab —
 # spaces are what the sidebar lists and what prefix+j/k walks. So the cheapest
