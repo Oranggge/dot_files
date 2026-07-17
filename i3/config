@@ -23,9 +23,9 @@ bindsym XF86AudioMicMute exec --no-startup-id pactl set-source-mute @DEFAULT_SOU
 bindsym XF86MonBrightnessUp exec --no-startup-id brightnessctl set +5%
 bindsym XF86MonBrightnessDown exec --no-startup-id brightnessctl set 5%-
 
-#screenshot tool
-bindsym $mod+Shift+s exec --no-startup-id ksnip -r
-bindsym $mod+Shift+a exec --no-startup-id ksnip -r
+#screenshot tool — needs a monitor at +0+0, see CLAUDE.md "Screenshots"
+bindsym $mod+Shift+s exec --no-startup-id flameshot gui
+bindsym $mod+Shift+a exec --no-startup-id flameshot gui
 
 # ctrl tab 
 bindsym $mod+Tab workspace back_and_forth

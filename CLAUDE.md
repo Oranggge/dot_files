@@ -60,44 +60,74 @@ in an always-visible bar.
   (like qutebrowser at `/usr/local/bin/qutebrowser`) need a desktop entry —
   see `./applications/qutebrowser.desktop` for the pattern.
 
-## Screenshots (ksnip, was flameshot)
+## Screenshots (flameshot) — READ THIS FIRST IF IT "TAKES THE WRONG SCREEN"
 
-`$mod+Shift+s` / `$mod+Shift+a` → `ksnip -r` (region select → editor). Swapped from
-flameshot on **2026-07-17** because flameshot is **broken on this machine and cannot
-be fixed locally** — don't spend another afternoon on it.
+`$mod+Shift+s` / `$mod+Shift+a` → `flameshot gui`.
 
-- **The bug:** Qt6 changed screen-grab geometry semantics; flameshot's per-screen
-  path now crops with *global* desktop coords instead of screen-local ones. Any
-  monitor not at `(0,0)` grabs the wrong region — mostly black, or another screen's
-  pixels. This layout has **no monitor at (0,0)** (eDP-1 `+0+1320`, DP-3-1 `+1920+0`,
-  DP-3-2 `+1920+1080`; the root window is 4480x2520 with a dead 1920x1320 corner at
-  the origin), so *every* screen is wrong. `flameshot full` still works — it takes one
-  root grab with no per-screen crop.
-- **Upstream, not us:** flameshot-org/flameshot#4043, #4155, #4337 — Qt6 multi-monitor,
-  open, spans v12–v14. Reconsider flameshot only once upstream fixes it.
-- **Already ruled out — do not retry:** restarting the daemon (`flameshot gui` only
-  D-Bus-pings the existing one, which is why "kill and restart" never helped); Qt HiDPI
-  env vars (`QT_ENABLE_HIGHDPI_SCALING` is Qt5-only and ignored by Qt6; every scaling
-  var gave byte-identical breakage despite the 162/96/122 DPI spread); xrandr transforms
-  (all identity); rearranging monitors (geometry makes a dead corner unavoidable);
-  **rebuilding Fedora's SRPM against matching Qt 6.11.1** (reproduces the bug exactly —
-  it is not an ABI mismatch); **the flatpak** (v14 routes captures through
-  xdg-desktop-portal, which cannot start under i3 — `graphical-session.target` never
-  activates and the GTK portal's screenshot backend delegates to GNOME Shell; it also
-  hijacks flameshot's D-Bus name and breaks the working `full`); **building v13 against
-  Qt5** (v13 is Qt6-only in C++ — `QStringDecoder`, `QEnterEvent` overrides; only v12
-  had a Qt5 build).
-- **Why ksnip works:** it's a **Qt5** app, so the Qt6 regression can't touch it. This is
-  the whole reason it was chosen — verified against `maim` ground truth on DP-3-2 before
-  rebinding.
-- **`~/.config/ksnip/ksnip.conf` is deliberately NOT tracked** — ksnip rewrites it on
-  exit, mixing settings with generated state (`LastRectArea`, window position, tool
-  fonts). Settings that matter, under `[Application]`: `AutoCopyToClipboardNewCaptures=true`
-  (capture lands on the clipboard with no extra step), `UseTrayIcon=false` +
-  `MinimizeToTray`/`CloseToTray`/`StartMinimizedToTray=false` (**no systray on this box** —
-  with the tray on, ksnip hangs invisibly), `UseSingleInstance=false` (otherwise a stale
-  instance silently swallows the CLI flags, so the keybinding no-ops). Plus
-  `[ImageGrabber] CaptureCursor=false` to match flameshot's old default.
+**If flameshot captures the wrong screen / black / another monitor: do NOT debug
+flameshot. It is the display layout.** Three commands, in this order:
+
+```
+xrandr --listmonitors     # is SOME monitor at +0+0? is the bounding box cleanly tiled?
+autorandr --current       # prints nothing => layout matches NO profile => this is it
+autorandr --load docked   # the fix
+```
+
+Diagnosed 2026-07-17, after an afternoon spent debugging the wrong layer. The layout
+was visible in the very first `xrandr` and got treated as a given instead of a
+suspect. Don't repeat that.
+
+- **What actually fires it: eDP-1 ON while the lid is shut.** logind's
+  `HandleLidSwitchDocked=lock` (`./logind/lid.conf`) only *locks* — it never powers the
+  panel off, and the `docked` autorandr profile that does (`output eDP-1 off`) does not
+  always get applied. With eDP-1 live at `+0+1320` both externals get shoved to
+  `x=1920`, the root window becomes 4480x2520 with a **dead 1920x1320 corner at the
+  origin**, and **nothing sits at (0,0)** → every screen captures wrong. Correct docked
+  layout: DP-3-1 `+0+0`, DP-3-2 `+0+1080`, eDP-1 off, root 2560x2520 fully tiled.
+- **Why the layout matters:** flameshot 13.3.0 + Qt6 only computes screen geometry
+  correctly when a monitor is at `(0,0)`. Qt6 changed grab semantics and flameshot's
+  per-screen path crops with *global* desktop coords inside a *screen-local* image —
+  valid region is `(W − origin_x) × (H − origin_y)`, the rest is black. Upstream, open,
+  spans v12–v14 (flameshot-org/flameshot#4043, #4155, #4337).
+- **Timeline:** Qt6 arrived with the **F42→F44 upgrade on 2026-06-08** (`fedora-release`
+  and `qt6-qtbase-6.11.1` installed 57 seconds apart — the same upgrade that broke the
+  i3lock theming). That *armed* the bug; it stayed invisible for a month until the
+  layout drifted. Not the kernel (kernels moved 3x after, and maim/`flameshot full` are
+  fine on the same one).
+- **`flameshot gui` — what the keys use — works in the correct layout**, because it
+  grabs the whole root with no per-screen crop. `flameshot full` always worked, same
+  reason. `flameshot screen` stays broken on any monitor not at the origin even when
+  docked (DP-3-2 at `+0+1080` → 75% black); that's upstream's bug, not worth chasing.
+- **Ruled out — do not retry:** restarting the daemon (`flameshot gui` only D-Bus-pings
+  the existing one — which is why "kill and restart" never helps, and D-Bus re-activates
+  it from `/usr/share/dbus-1/services/`); Qt HiDPI env vars (`QT_ENABLE_HIGHDPI_SCALING`
+  is Qt5-only, ignored by Qt6; every scaling var gave byte-identical breakage despite the
+  162/96/122 DPI spread); xrandr transforms (all identity); **rebuilding Fedora's SRPM
+  against matching Qt 6.11.1** (reproduces the bug exactly — it is *not* an ABI mismatch,
+  despite the binary reporting "Compiled with Qt 6.10.1"); **the flatpak** (v14 captures
+  via xdg-desktop-portal, which cannot start under i3 — `graphical-session.target` never
+  activates and the GTK backend delegates to GNOME Shell; it also hijacks flameshot's
+  D-Bus name and breaks the working `full`); **building v13 against Qt5** (v13 is Qt6-only
+  in C++ — `QStringDecoder`, `QEnterEvent` overrides; only v12 had a Qt5 build).
+- **Open follow-up:** autorandr did *not* auto-apply `docked` on dock + lid-close, which
+  is what let the layout drift. Until that's fixed this recurs — `autorandr --load docked`
+  is the manual workaround.
+- **Ground truth for testing:** `maim -u -g WxH+X+Y` captures correctly on every layout.
+  Compare against it instead of eyeballing — a broken flameshot grab is mostly black, and
+  the black % pins the origin arithmetic exactly (6.25% ⇒ origin `+1920+1080`, 75% ⇒ one
+  axis off). Structural metrics (NCC/RMSE) misled repeatedly here; look at the image.
+
+### ksnip (installed 2026-07-17, fallback)
+
+Qt5, so structurally immune to the Qt6 regression — captures correctly *even in the
+broken layout*. Kept installed as a fallback; **not bound to any key**. `ksnip -r` =
+region select → editor. `~/.config/ksnip/ksnip.conf` is **not tracked** (ksnip rewrites
+it on exit, mixing settings with generated state). Settings that matter, under
+`[Application]`: `AutoCopyToClipboardNewCaptures=true`, `UseTrayIcon=false` +
+`MinimizeToTray`/`CloseToTray`/`StartMinimizedToTray=false` (**no systray on this box** —
+with the tray on ksnip hangs invisibly), `UseSingleInstance=false` (otherwise a stale
+instance silently swallows the CLI flags and the keybinding no-ops). Plus
+`[ImageGrabber] CaptureCursor=false`.
 
 ## Obsidian Sync (headless)
 
