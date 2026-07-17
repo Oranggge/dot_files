@@ -5,6 +5,14 @@ font pango:monospace 13
 
 exec --no-startup-id dex-autostart --autostart --environment i3
 
+# Apply the matching autorandr profile (docked/mobile). Nothing else does this at
+# session start: udev only fires on DRM hotplug, and closing the lid is not one —
+# eDP-1 stays "connected", so a stale layout survives indefinitely. A layout with no
+# monitor at +0+0 silently breaks flameshot (see CLAUDE.md "Screenshots"), so this
+# runs before polybar. No-op when the profile already matches, hence exec_always:
+# $mod+Shift+R re-applies it.
+exec_always --no-startup-id autorandr --change
+
 exec --no-startup-id xss-lock --transfer-sleep-lock -- ~/.config/i3/lock.sh
 
 # Disable X11 idle blanking/DPMS while the session is unlocked.

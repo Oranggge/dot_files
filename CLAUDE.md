@@ -109,9 +109,27 @@ suspect. Don't repeat that.
   activates and the GTK backend delegates to GNOME Shell; it also hijacks flameshot's
   D-Bus name and breaks the working `full`); **building v13 against Qt5** (v13 is Qt6-only
   in C++ — `QStringDecoder`, `QEnterEvent` overrides; only v12 had a Qt5 build).
-- **Open follow-up:** autorandr did *not* auto-apply `docked` on dock + lid-close, which
-  is what let the layout drift. Until that's fixed this recurs — `autorandr --load docked`
-  is the manual workaround.
+- **Layout automation (fixed 2026-07-17 — this is what stops it recurring):** nothing
+  used to re-apply a profile, so a drifted layout stayed drifted forever. Now covered on
+  all four paths:
+  - **session start** — `exec_always --no-startup-id autorandr --change` in `./i3/config`.
+    `exec_always`, so `$mod+Shift+R` re-applies it; it's a no-op when the profile already
+    matches (autorandr skips a profile that is already `(current)`), so no flicker.
+  - **dock/undock** — `/usr/lib/udev/rules.d/40-monitor-hotplug.rules` runs
+    `systemctl start autorandr.service` on any DRM change. This works even though the
+    unit reads "disabled" — an explicit `start` ignores the enable state.
+  - **lid open/close** — `autorandr-lid-listener.service` (**enabled by hand**). A lid
+    toggle is *not* a DRM hotplug — eDP-1 stays `connected` either way — so udev never
+    fires and this unit is the only thing that can catch it. It was disabled, which is
+    exactly how eDP-1 stayed lit behind a shut lid.
+  - **resume from sleep** — `autorandr.service` (**enabled by hand**, `WantedBy=sleep.target`).
+
+  Both units are *system* units enabled manually — not tracked here, so re-enable them on
+  a fresh machine (see Bootstrap).
+- **Consequence worth knowing:** autorandr matches profiles by the EDIDs of *connected*
+  outputs, which are identical whether the lid is open or shut. So while docked, opening
+  the lid will **not** light up eDP-1 — `docked` says `output eDP-1 off`, and that is what
+  gets re-applied. Intended here, and the reason the layout is now stable.
 - **Ground truth for testing:** `maim -u -g WxH+X+Y` captures correctly on every layout.
   Compare against it instead of eyeballing — a broken flameshot grab is mostly black, and
   the black % pins the origin arithmetic exactly (6.25% ⇒ origin `+1920+1080`, 75% ⇒ one
@@ -401,9 +419,20 @@ sudo dnf install -y maim ImageMagick
 #   -- or build from https://github.com/Raymo111/i3lock-color (see its README
 #      for the -devel build deps). Verify with: i3lock --help | grep -- --clock
 
-# Screenshot tool (see the Screenshots section for why NOT flameshot).
-# ksnip.conf is not tracked -- set it up from the settings listed there.
-sudo dnf install -y ksnip
+# Screenshot tool. ksnip is the Qt5 fallback; its config is not tracked --
+# set it up from the settings in the Screenshots section if you ever need it.
+sudo dnf install -y flameshot ksnip
+
+# Monitor layout automation. WITHOUT THESE the layout silently drifts (eDP-1 stays
+# lit behind a shut lid) and flameshot starts capturing the wrong screen -- see the
+# Screenshots section. The udev hotplug rule ships with the package; these two do not
+# get enabled on their own, and the lid one is the whole point.
+sudo dnf install -y autorandr
+sudo systemctl enable --now autorandr-lid-listener.service   # lid open/close
+sudo systemctl enable autorandr.service                      # resume from sleep
+# then save the profiles once, per machine:
+#   docked:  externals on, eDP-1 off  -> autorandr --save docked
+#   mobile:  eDP-1 on, externals off  -> autorandr --save mobile
 
 # Symlink everything
 ln -sf ~/gits/dot_files/.tmux.conf            ~/.tmux.conf
