@@ -34,6 +34,32 @@ in an always-visible bar.
     `memory full avg60 >= 5`, or `cpu some avg60 >= 30`. Priority order IO → MEM →
     CPU, showing only the worst. **This is the signal that means "your machine is
     grinding, look at it" — much sharper than aggregate CPU%.**
+    - **The io branch is gated on real device activity — `/proc/pressure/io` lies
+      (diagnosed 2026-07-17).** The kernel leaks `nr_iowait`: `procs_blocked` pinned
+      at a constant 6, `io full avg60` at ~45%, ~30% of all CPU billed to iowait —
+      while **nothing was actually waiting**. Ground truth, all measured at once:
+      nvme busy 8ms/4000ms, zram busy 0ms/4000ms, `inflight` 0 on both, **zero
+      threads in D state** across every entry in `/proc/*/task/*/stat`, no io_uring
+      / fuse / loop / NFS, dmesg clean. It had been stuck there since boot (39 of 74
+      hours), so the bar was **permanently red** — precisely the crying-wolf failure
+      this module was rebuilt to escape. `psi.sh` now samples field 13 (`ms doing
+      io`) of `/proc/diskstats` across whole block devices between ticks and only
+      believes io pressure at `>= MIN_BUSY_PCT` (5%) utilisation. State lives in
+      `$XDG_RUNTIME_DIR/polybar-psi.busy`, keyed on `/proc/uptime` (monotonic — a
+      wall-clock jump can't skew the window); no evidence ⇒ suppress, self-correcting
+      next tick. Rationale for the threshold: a genuine stall keeps a queue
+      non-empty, so real pressure tracks busy% closely, while the phantom sits at ~0.
+    - **Don't try to verify this with synthetic IO on this box — it doesn't work.**
+      `dd` from `/dev/urandom` is CPU-bound and never loads the disk (12ms busy);
+      `/dev/zero` gets eaten by `compress=zstd:1` before reaching the platter; and
+      **`O_DIRECT` silently falls back to buffered on btrfs**, so even 8 parallel
+      `iflag=direct` readers just hit the 8GB page cache (1% busy, inflight 0). Test
+      the *gate* instead by injecting a known state file — that's deterministic and
+      covers the cases that matter (fires ≥5%, silent <5%, silent on rollover).
+    - **Known limitation:** when real IO does occur, the *number shown* is still the
+      phantom-inflated PSI value (~44% instead of the true figure). The phantom is a
+      kernel-side counter and can't be cleanly subtracted. The module fires at the
+      right *times*, which is what an alert is for; don't read the % as precise.
   - `polybar/load.sh` — `load5 / nproc` ratio. Foreground <0.7, yellow 0.7–1.0,
     red ≥1.0. Independent of iowait, so it shows true CPU contention.
   - `polybar/ram.sh` — working-set used %, computed as
