@@ -160,18 +160,19 @@ suspect. Don't repeat that.
   Compare against it instead of eyeballing — a broken flameshot grab is mostly black, and
   the black % pins the origin arithmetic exactly (6.25% ⇒ origin `+1920+1080`, 75% ⇒ one
   axis off). Structural metrics (NCC/RMSE) misled repeatedly here; look at the image.
-
-### ksnip (installed 2026-07-17, fallback)
-
-Qt5, so structurally immune to the Qt6 regression — captures correctly *even in the
-broken layout*. Kept installed as a fallback; **not bound to any key**. `ksnip -r` =
-region select → editor. `~/.config/ksnip/ksnip.conf` is **not tracked** (ksnip rewrites
-it on exit, mixing settings with generated state). Settings that matter, under
-`[Application]`: `AutoCopyToClipboardNewCaptures=true`, `UseTrayIcon=false` +
-`MinimizeToTray`/`CloseToTray`/`StartMinimizedToTray=false` (**no systray on this box** —
-with the tray on ksnip hangs invisibly), `UseSingleInstance=false` (otherwise a stale
-instance silently swallows the CLI flags and the keybinding no-ops). Plus
-`[ImageGrabber] CaptureCursor=false`.
+- **Escape hatch if the Qt6 bug ever resurfaces** (upstream is still open across v12–v14,
+  so it is armed, not gone): **ksnip** is Qt5 and therefore structurally immune — it
+  captures correctly *even in the broken layout*. `sudo dnf install ksnip && ksnip -r`
+  (region select → editor). Installed 2026-07-17 as a fallback and **removed the same day**
+  once the layout automation above made flameshot reliable; it was never bound to a key.
+  If you ever reinstall it, two settings are non-negotiable under `[Application]` in
+  `~/.config/ksnip/ksnip.conf`: `UseTrayIcon=false` (plus `MinimizeToTray`/`CloseToTray`/
+  `StartMinimizedToTray=false`) because there is **no systray on this box** and with the
+  tray on ksnip **hangs invisibly** — the removed instance had wedged for 4h40m holding
+  318 MB with nothing on screen — and `UseSingleInstance=false`, or a stale instance
+  silently swallows the CLI flags and the invocation no-ops. Also
+  `[ImageGrabber] CaptureCursor=false`. The config is not worth tracking: ksnip rewrites
+  it on exit, mixing settings with generated state.
 
 ## Obsidian Sync (headless)
 
@@ -445,9 +446,9 @@ sudo dnf install -y maim ImageMagick
 #   -- or build from https://github.com/Raymo111/i3lock-color (see its README
 #      for the -devel build deps). Verify with: i3lock --help | grep -- --clock
 
-# Screenshot tool. ksnip is the Qt5 fallback; its config is not tracked --
-# set it up from the settings in the Screenshots section if you ever need it.
-sudo dnf install -y flameshot ksnip
+# Screenshot tool. flameshot only -- the ksnip fallback was removed 2026-07-17;
+# see the Screenshots section if you ever need it back.
+sudo dnf install -y flameshot
 
 # Monitor layout automation. WITHOUT THESE the layout silently drifts (eDP-1 stays
 # lit behind a shut lid) and flameshot starts capturing the wrong screen -- see the
