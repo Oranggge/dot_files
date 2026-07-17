@@ -24,8 +24,8 @@ bindsym XF86MonBrightnessUp exec --no-startup-id brightnessctl set +5%
 bindsym XF86MonBrightnessDown exec --no-startup-id brightnessctl set 5%-
 
 #screenshot tool
-bindsym $mod+Shift+s exec --no-startup-id flameshot gui
-bindsym $mod+Shift+a exec --no-startup-id flameshot gui
+bindsym $mod+Shift+s exec --no-startup-id ksnip -r
+bindsym $mod+Shift+a exec --no-startup-id ksnip -r
 
 # ctrl tab 
 bindsym $mod+Tab workspace back_and_forth

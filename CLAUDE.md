@@ -60,6 +60,45 @@ in an always-visible bar.
   (like qutebrowser at `/usr/local/bin/qutebrowser`) need a desktop entry —
   see `./applications/qutebrowser.desktop` for the pattern.
 
+## Screenshots (ksnip, was flameshot)
+
+`$mod+Shift+s` / `$mod+Shift+a` → `ksnip -r` (region select → editor). Swapped from
+flameshot on **2026-07-17** because flameshot is **broken on this machine and cannot
+be fixed locally** — don't spend another afternoon on it.
+
+- **The bug:** Qt6 changed screen-grab geometry semantics; flameshot's per-screen
+  path now crops with *global* desktop coords instead of screen-local ones. Any
+  monitor not at `(0,0)` grabs the wrong region — mostly black, or another screen's
+  pixels. This layout has **no monitor at (0,0)** (eDP-1 `+0+1320`, DP-3-1 `+1920+0`,
+  DP-3-2 `+1920+1080`; the root window is 4480x2520 with a dead 1920x1320 corner at
+  the origin), so *every* screen is wrong. `flameshot full` still works — it takes one
+  root grab with no per-screen crop.
+- **Upstream, not us:** flameshot-org/flameshot#4043, #4155, #4337 — Qt6 multi-monitor,
+  open, spans v12–v14. Reconsider flameshot only once upstream fixes it.
+- **Already ruled out — do not retry:** restarting the daemon (`flameshot gui` only
+  D-Bus-pings the existing one, which is why "kill and restart" never helped); Qt HiDPI
+  env vars (`QT_ENABLE_HIGHDPI_SCALING` is Qt5-only and ignored by Qt6; every scaling
+  var gave byte-identical breakage despite the 162/96/122 DPI spread); xrandr transforms
+  (all identity); rearranging monitors (geometry makes a dead corner unavoidable);
+  **rebuilding Fedora's SRPM against matching Qt 6.11.1** (reproduces the bug exactly —
+  it is not an ABI mismatch); **the flatpak** (v14 routes captures through
+  xdg-desktop-portal, which cannot start under i3 — `graphical-session.target` never
+  activates and the GTK portal's screenshot backend delegates to GNOME Shell; it also
+  hijacks flameshot's D-Bus name and breaks the working `full`); **building v13 against
+  Qt5** (v13 is Qt6-only in C++ — `QStringDecoder`, `QEnterEvent` overrides; only v12
+  had a Qt5 build).
+- **Why ksnip works:** it's a **Qt5** app, so the Qt6 regression can't touch it. This is
+  the whole reason it was chosen — verified against `maim` ground truth on DP-3-2 before
+  rebinding.
+- **`~/.config/ksnip/ksnip.conf` is deliberately NOT tracked** — ksnip rewrites it on
+  exit, mixing settings with generated state (`LastRectArea`, window position, tool
+  fonts). Settings that matter, under `[Application]`: `AutoCopyToClipboardNewCaptures=true`
+  (capture lands on the clipboard with no extra step), `UseTrayIcon=false` +
+  `MinimizeToTray`/`CloseToTray`/`StartMinimizedToTray=false` (**no systray on this box** —
+  with the tray on, ksnip hangs invisibly), `UseSingleInstance=false` (otherwise a stale
+  instance silently swallows the CLI flags, so the keybinding no-ops). Plus
+  `[ImageGrabber] CaptureCursor=false` to match flameshot's old default.
+
 ## Obsidian Sync (headless)
 
 Vault `~/Documents/knowledge/` (remote vault `knowledge`, id
@@ -331,6 +370,10 @@ sudo dnf install -y maim ImageMagick
 #   sudo dnf copr enable <user>/i3lock-color && sudo dnf install i3lock-color
 #   -- or build from https://github.com/Raymo111/i3lock-color (see its README
 #      for the -devel build deps). Verify with: i3lock --help | grep -- --clock
+
+# Screenshot tool (see the Screenshots section for why NOT flameshot).
+# ksnip.conf is not tracked -- set it up from the settings listed there.
+sudo dnf install -y ksnip
 
 # Symlink everything
 ln -sf ~/gits/dot_files/.tmux.conf            ~/.tmux.conf
